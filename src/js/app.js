@@ -687,19 +687,9 @@ class App {
 
     document.getElementById("cropDiscardBtn").addEventListener("click", () => {
       this.closeCropModal();
-      document.getElementById("sampleImageInput").click();
     });
 
     document.getElementById("cropApplyBtn").addEventListener("click", () => {
-      document.getElementById("cropFooter").style.display = "flex";
-      this._cropActive = true;
-    });
-
-    document.getElementById("cropCancelBtn").addEventListener("click", () => {
-      this.closeCropModal();
-    });
-
-    document.getElementById("cropConfirmBtn").addEventListener("click", () => {
       this.finalizeCrop();
     });
 
@@ -1037,7 +1027,7 @@ class App {
     if (projects.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="icon">📋</div>
+          <div class="icon"><img src="/src/icon/file.svg" alt="empty" class="empty-icon"></div>
           <p>暂无类别，点击右上角"新建类别"开始</p>
         </div>
       `;
@@ -1251,7 +1241,7 @@ class App {
     if (samples.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="icon">📦</div>
+          <div class="icon"><img src="/src/icon/box.svg" alt="empty" class="empty-icon"></div>
           <p>暂无样板，点击"录入样板"开始添加</p>
         </div>
       `;
@@ -1403,13 +1393,6 @@ class App {
 
   openCropModal(file) {
     if (!file) return;
-    if (file.size > 1024 * 1024) {
-      this.showToast("图片大小不能超过1MB", "warning");
-      return;
-    }
-
-    this._cropFile = file;
-    this._cropActive = false;
 
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -1464,7 +1447,6 @@ class App {
     let startX, startY, startL, startT;
 
     const onStart = (ex, ey) => {
-      if (this._cropActive) return;
       startX = ex;
       startY = ey;
       startL = parseInt(selector.style.left);
@@ -1524,7 +1506,6 @@ class App {
     const minSize = 40;
 
     const onStart = (hEl, ex, ey) => {
-      if (this._cropActive) return;
       handle = hEl;
       startX = ex;
       startY = ey;
@@ -1608,9 +1589,7 @@ class App {
 
   closeCropModal() {
     document.getElementById("cropModal").classList.remove("active");
-    this._cropFile = null;
     this._cropOriginalImg = null;
-    this._cropActive = false;
   }
 
   finalizeCrop() {
@@ -1632,7 +1611,14 @@ class App {
     const ctx = cropCanvas.getContext("2d");
     ctx.drawImage(this._cropOriginalImg, ox, oy, ow, oh, 0, 0, ow, oh);
 
-    const croppedDataUrl = cropCanvas.toDataURL("image/jpeg", 0.9);
+    let croppedDataUrl = cropCanvas.toDataURL("image/jpeg", 0.9);
+
+    const maxBytes = 1024 * 1024;
+    let q = 0.9;
+    while (croppedDataUrl.length * 0.75 > maxBytes && q > 0.15) {
+      q = Math.round((q - 0.1) * 10) / 10;
+      croppedDataUrl = cropCanvas.toDataURL("image/jpeg", q);
+    }
 
     this.closeCropModal();
     this._applyCroppedImage(croppedDataUrl);
