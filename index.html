@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <title>材料样板管理系统</title>
+    <link rel="stylesheet" href="/src/css/style.css" />
+  </head>
+  <body>
+    <div id="toastContainer" class="toast-container"></div>
+
+    <div id="loginSection" class="page-section active">
+      <div class="login-page">
+        <div class="login-card">
+          <h1>材料样板管理</h1>
+          <p class="subtitle">登录以管理您的材料样板</p>
+
+          <div class="invite-code-area">
+            <div class="label">今日邀请码</div>
+            <div class="code" id="loginInviteCode">------</div>
+            <div class="date" id="loginInviteDate"></div>
+          </div>
+
+          <form id="loginForm">
+            <div class="form-group">
+              <label for="loginEmail">邮箱</label>
+              <input
+                type="email"
+                id="loginEmail"
+                placeholder="请输入邮箱"
+                autocomplete="email"
+              />
+            </div>
+            <div class="form-group">
+              <label for="loginPassword">密码</label>
+              <input
+                type="password"
+                id="loginPassword"
+                placeholder="请输入密码"
+                autocomplete="current-password"
+              />
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">
+              登 录
+            </button>
+          </form>
+
+          <div style="margin-top: 16px; text-align: center">
+            <button
+              id="demoLoginBtn"
+              class="btn btn-secondary btn-block"
+              style="display: none"
+            >
+              演示模式（无需账号）
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="appSection" class="page-section">
+      <aside class="sidebar" id="sidebar">
+        <div
+          class="sidebar-title"
+          onclick="
+            window.app.renderProjects();
+            window.app.showView('projects');
+          "
+        >
+          材料样板管理
+        </div>
+        <nav class="sidebar-nav">
+          <span class="sidebar-user" id="sidebarUser"></span>
+          <a href="#" id="navProjects" class="sidebar-link active">类别</a>
+          <button id="infoBtn" class="sidebar-link">信息</button>
+          <button id="logoutBtn" class="sidebar-link sidebar-logout">
+            退出
+          </button>
+        </nav>
+      </aside>
+
+      <main class="main-content">
+        <div class="container">
+          <div id="projectsSection" class="page-section">
+            <div class="section-header">
+              <h2>类别列表</h2>
+              <button id="createProjectBtn" class="btn btn-primary">
+                + 新建类别
+              </button>
+            </div>
+            <div id="projectsContainer" class="card-grid"></div>
+          </div>
+
+          <div id="samplesSection" class="page-section">
+            <div class="section-header">
+              <div>
+                <button class="back-btn" id="backToProjects">← 返回类别</button>
+                <h2 style="margin-top: 8px" id="currentProjectName"></h2>
+              </div>
+              <div class="btn-group">
+                <button id="selectAllBtn" class="btn btn-secondary">
+                  全选
+                </button>
+                <button id="batchPrintBtn" class="btn btn-secondary" disabled>
+                  批量打印
+                </button>
+                <button id="editProjectSampleBtn" class="btn btn-secondary">
+                  编辑类别
+                </button>
+                <button id="createSampleBtn" class="btn btn-primary">
+                  + 录入样板
+                </button>
+              </div>
+            </div>
+            <div id="samplesContainer" class="sample-grid"></div>
+          </div>
+
+          <div id="labelsSection" class="page-section">
+            <div class="print-toolbar">
+              <div>
+                <button class="back-btn" id="backFromLabels">← 返回</button>
+                <h2 style="font-size: 1.1rem; margin-top: 8px">标签打印</h2>
+              </div>
+              <button class="btn btn-primary" onclick="window.print()">
+                打印全部标签
+              </button>
+            </div>
+            <div id="labelsContainer" class="print-labels-container"></div>
+          </div>
+
+          <div id="sampleDetailSection" class="page-section">
+            <div class="section-header">
+              <button class="back-btn" id="backFromDetail">← 返回</button>
+            </div>
+            <div id="sampleDetailContainer"></div>
+          </div>
+
+          <div id="infoSection" class="page-section">
+            <div class="section-header">
+              <h2>信息</h2>
+            </div>
+            <div id="infoContainer"></div>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <div class="modal-overlay" id="projectModal">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="projectModalTitle">新建类别</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <form id="projectForm">
+          <div class="modal-body">
+            <input type="hidden" id="projectId" />
+            <div class="form-row">
+              <div class="form-group">
+                <input
+                  type="text"
+                  id="projectName"
+                  required
+                  placeholder="类别名称"
+                />
+              </div>
+              <div class="form-group">
+                <input type="text" id="projectBrand" placeholder="品牌" />
+              </div>
+            </div>
+            <div class="form-group">
+              <textarea
+                id="projectDescription"
+                placeholder="类别描述（可选）"
+                rows="2"
+              ></textarea>
+            </div>
+            <div class="form-group">
+              <div class="vis-pill" id="projectProcCapsule">
+                <button
+                  class="vis-pill-btn active"
+                  data-value="非集采"
+                  type="button"
+                >
+                  非集采
+                </button>
+                <button class="vis-pill-btn" data-value="集采" type="button">
+                  集采
+                </button>
+              </div>
+            </div>
+            <div class="form-row" id="procTimeRow" style="display: none">
+              <div class="form-group">
+                <div class="select-group">
+                  <select id="procStartYear">
+                    <option value="">开始年</option>
+                  </select>
+                  <select id="procStartMonth">
+                    <option value="">月</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="select-group">
+                  <select id="procEndYear">
+                    <option value="">结束年</option>
+                  </select>
+                  <select id="procEndMonth">
+                    <option value="">月</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              id="cancelProjectBtn"
+              class="btn btn-secondary"
+            >
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="sampleModal">
+      <div class="modal" style="max-width: 520px">
+        <div class="modal-header">
+          <h3 id="sampleModalTitle">录入样板</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <form id="sampleForm">
+          <div class="modal-body">
+            <input type="hidden" id="sampleId" />
+            <div class="sample-img-area" id="imageUploadArea">
+              <input
+                type="file"
+                id="sampleImageInput"
+                accept="image/*"
+                capture="environment"
+                hidden
+              />
+              <div class="sample-img-placeholder" id="imagePlaceholder">
+                <div class="upl-icon">📷</div>
+                <div class="upl-text">点击拍照或上传图片</div>
+                <div class="upl-hint">手机端呼出相机 · 电脑端上传文件</div>
+              </div>
+              <div class="image-preview" id="imagePreview">
+                <img id="sampleImagePreview" src="" />
+              </div>
+            </div>
+            <div class="sample-form-grid">
+              <div class="form-group">
+                <div class="input-group">
+                  <input
+                    type="text"
+                    id="sampleBrand"
+                    placeholder="品牌 · 如：水墨江南"
+                  />
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="input-group">
+                  <input
+                    type="text"
+                    id="sampleName"
+                    required
+                    placeholder="样板名称 · 如：米黄洞石"
+                  />
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="input-group">
+                  <input
+                    type="text"
+                    id="sampleModel"
+                    placeholder="型号 · 如：MHY-001"
+                  />
+                </div>
+              </div>
+              <div class="form-group">
+                <div class="input-group">
+                  <input
+                    type="text"
+                    id="sampleCode"
+                    readonly
+                    placeholder="编号 · 自动生成"
+                  />
+                </div>
+              </div>
+            </div>
+            <div class="procurement-range-capsule" id="procurementRangeCapsule">
+              <div class="vis-pill">
+                <button class="vis-pill-btn" data-value="范围内" type="button">
+                  范围内
+                </button>
+                <button
+                  class="vis-pill-btn active"
+                  data-value="范围外"
+                  type="button"
+                >
+                  范围外
+                </button>
+              </div>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button
+              type="button"
+              id="cancelSampleBtn"
+              class="btn btn-secondary"
+            >
+              取消
+            </button>
+            <button type="submit" class="btn btn-primary">保存</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div class="modal-overlay" id="labelPreviewModal"></div>
+
+    <div class="modal-overlay" id="cropModal">
+      <div class="crop-modal">
+        <div class="crop-header">
+          <button
+            id="cropDiscardBtn"
+            class="crop-header-btn discard"
+            title="取消并重拍"
+          >
+            &times;
+          </button>
+          <button
+            id="cropApplyBtn"
+            class="crop-header-btn apply"
+            title="应用裁切"
+          >
+            &#10003;
+          </button>
+        </div>
+        <div class="crop-body" id="cropBody">
+          <div class="crop-stage" id="cropStage">
+            <canvas id="cropImageCanvas"></canvas>
+            <div class="crop-overlay" id="cropOverlay">
+              <div class="crop-selector" id="cropSelector">
+                <div class="crop-handle crop-handle-nw"></div>
+                <div class="crop-handle crop-handle-ne"></div>
+                <div class="crop-handle crop-handle-sw"></div>
+                <div class="crop-handle crop-handle-se"></div>
+                <div class="crop-handle crop-handle-n"></div>
+                <div class="crop-handle crop-handle-s"></div>
+                <div class="crop-handle crop-handle-w"></div>
+                <div class="crop-handle crop-handle-e"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="crop-footer" id="cropFooter">
+          <button id="cropCancelBtn" class="btn btn-secondary">取消</button>
+          <button id="cropConfirmBtn" class="btn btn-primary">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="/src/js/app.js"></script>
+  </body>
+</html>
