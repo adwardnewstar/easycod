@@ -760,7 +760,7 @@ class App {
           password,
         });
         if (error) {
-          this.showToast("邮箱或密码错误，请联系管理员", "error");
+          this.showToast(error.message, "error");
           return;
         }
         const user = data.user;
