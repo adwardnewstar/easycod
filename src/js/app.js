@@ -599,6 +599,7 @@ class App {
       const project = Store.getProjects().find(
         (p) => p.id === this.currentProjectId,
       );
+      document.getElementById("sampleBrand").value = project?.brand || "";
       const capsule = document.getElementById("procurementRangeCapsule");
       if (project && project.procurement) {
         capsule.classList.remove("disabled");
