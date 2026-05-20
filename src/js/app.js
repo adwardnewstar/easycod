@@ -1,7 +1,7 @@
 const DEMO_MODE = false;
 
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
+const SUPABASE_URL = "https://vqoortdzwlllyxplduxq.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_arXBSdeuLwK2UkZkTyDfZg_Zmr5yIqI";
 
 let supabaseClient = null;
 
@@ -674,7 +674,7 @@ class App {
 
     document.querySelectorAll(".modal-overlay").forEach((overlay) => {
       overlay.addEventListener("click", (e) => {
-        if (e.target === overlay) {
+        if (e.target === overlay && overlay.id !== "sampleModal") {
           overlay.classList.remove("active");
         }
       });
@@ -760,19 +760,11 @@ class App {
           password,
         });
         if (error) {
-          if (error.message.includes("Invalid login credentials")) {
-            const { error: signUpError } = await supabaseClient.auth.signUp({
-              email,
-              password,
-            });
-            if (signUpError) throw signUpError;
-            this.showToast(
-              "账号已创建，请查看邮箱确认（如无需确认可直接登录）",
-              "success",
-            );
-            return;
-          }
-          throw error;
+          this.showToast(
+            "账号不存在或密码错误，请联系管理员开通",
+            "error",
+          );
+          return;
         }
         const user = data.user;
         this.user = {
