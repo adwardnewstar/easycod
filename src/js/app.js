@@ -1,6 +1,6 @@
 const DEMO_MODE = false;
 
-const SUPABASE_URL = "https://vqoortdzwlllyxplduxq.supabase.co";
+const SUPABASE_URL = "https://vqoortdzgvllyxplduxq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_arXBSdeuLwK2UkZkTyDfZg_Zmr5yIqI";
 
 let supabaseClient = null;
@@ -760,6 +760,24 @@ class App {
           password,
         });
         if (error) {
+          if (
+            error.message &&
+            (error.message.includes("Failed to fetch") ||
+              error.message.includes("NetworkError") ||
+              error.message.includes("Network Error"))
+          ) {
+            this.showToast("数据库连接失败，将以离线模式登录", "warning");
+            this.user = {
+              id: generateId(),
+              email,
+              name: email.split("@")[0],
+              isDemo: false,
+            };
+            Store.saveSession(this.user);
+            this.showToast("已离线登录", "success");
+            this.showApp();
+            return;
+          }
           this.showToast(error.message, "error");
           return;
         }
@@ -776,7 +794,16 @@ class App {
         this.showToast("登录成功", "success");
         this.showApp();
       } catch (e) {
-        this.showToast(e.message || "登录失败", "error");
+        this.showToast("数据库连接失败，已离线登录", "warning");
+        this.user = {
+          id: generateId(),
+          email,
+          name: email.split("@")[0],
+          isDemo: false,
+        };
+        Store.saveSession(this.user);
+        this.showToast("已离线登录", "success");
+        this.showApp();
       }
     } else {
       this.user = {
