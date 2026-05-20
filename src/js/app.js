@@ -1401,7 +1401,6 @@ class App {
     };
     reader.readAsDataURL(file);
 
-    document.getElementById("cropFooter").style.display = "none";
     document.getElementById("cropModal").classList.add("active");
   }
 
