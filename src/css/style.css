@@ -166,18 +166,11 @@ a:hover {
   font-size: 1.5rem;
   font-weight: 600;
   text-align: center;
-  margin-bottom: 8px;
-}
-
-.login-card .subtitle {
-  text-align: center;
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .form-group {
-  margin-bottom: 20px;
+  margin-bottom: 12px;
 }
 
 .form-group label {
@@ -303,34 +296,6 @@ a:hover {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
-}
-
-/* Invite Code Display */
-.invite-code-area {
-  text-align: center;
-  padding: 16px;
-  background: var(--primary-light);
-  border-radius: var(--radius);
-  margin-bottom: 24px;
-}
-
-.invite-code-area .label {
-  font-size: 0.8rem;
-  color: var(--text-secondary);
-}
-
-.invite-code-area .code {
-  font-size: 1.75rem;
-  font-weight: 700;
-  color: var(--primary);
-  letter-spacing: 6px;
-  margin-top: 4px;
-}
-
-.invite-code-area .date {
-  font-size: 0.75rem;
-  color: var(--text-light);
-  margin-top: 4px;
 }
 
 /* Demo Mode Badge */

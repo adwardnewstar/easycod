@@ -460,19 +460,10 @@ class App {
     this.currentView = "login";
     document.getElementById("loginSection").classList.add("active");
     document.getElementById("appSection").classList.remove("active");
-    this.renderLoginInviteCode();
     const demoBtn = document.getElementById("demoLoginBtn");
     if (demoBtn) {
       demoBtn.style.display = DEMO_MODE ? "" : "none";
     }
-  }
-
-  renderLoginInviteCode() {
-    const code = Store.getDailyCode();
-    document.getElementById("loginInviteCode").textContent = code;
-    const now = new Date();
-    document.getElementById("loginInviteDate").textContent =
-      `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
   }
 
   showApp() {
