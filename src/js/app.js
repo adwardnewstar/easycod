@@ -16,6 +16,22 @@ function initSupabase() {
 }
 
 initSupabase();
+var _initRetries = 0;
+function retryInitSupabase() {
+  if (supabaseClient) return true;
+  if (typeof supabase !== "undefined") {
+    try {
+      supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      if (supabaseClient) return true;
+    } catch (e) {
+      console.warn("Supabase retry init failed:", e);
+    }
+  }
+  return false;
+}
+if (!supabaseClient) {
+  setTimeout(retryInitSupabase, 2000);
+}
 
 const STORAGE_KEYS = {
   projects: "easycod_projects",
@@ -511,9 +527,20 @@ class App {
 
   checkSession() {
     const session = Store.getSession();
-    if (session) {
+    if (session && supabaseClient) {
       this.user = session;
       this.showApp();
+    } else if (session) {
+      var self = this;
+      setTimeout(function () {
+        if (supabaseClient) {
+          self.user = session;
+          self.showApp();
+        } else {
+          Store.clearSession();
+          self.showLogin();
+        }
+      }, 3000);
     } else {
       this.showLogin();
     }
@@ -816,36 +843,35 @@ class App {
       return;
     }
 
-    if (supabaseClient) {
-      try {
-        const { data, error } = await supabaseClient.auth.signInWithPassword({
-          email,
-          password,
-        });
-        if (error) {
-          this.showToast(error.message, "error");
-          return;
-        }
-        const user = data.user;
-        this.user = {
-          id: user.id,
-          email: user.email,
-          name: email.split("@")[0],
-          isDemo: false,
-        };
-        Store.saveSession(this.user);
-        await Store.loadProjectsFromDB();
-        await Store.loadSamplesFromDB();
-        this.showToast("登录成功", "success");
-        this.showApp();
-      } catch (e) {
-        this.showToast(
-          e.message || "数据库连接失败，请检查网络后重试",
-          "error",
-        );
+    if (!supabaseClient) {
+      if (!retryInitSupabase()) {
+        this.showToast("数据库未连接，请检查网络后刷新页面重试", "error");
+        return;
       }
-    } else {
-      this.showToast("数据库未连接，请检查网络后刷新页面重试", "error");
+    }
+    try {
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email,
+        password,
+      });
+      if (error) {
+        this.showToast(error.message, "error");
+        return;
+      }
+      const user = data.user;
+      this.user = {
+        id: user.id,
+        email: user.email,
+        name: email.split("@")[0],
+        isDemo: false,
+      };
+      Store.saveSession(this.user);
+      await Store.loadProjectsFromDB();
+      await Store.loadSamplesFromDB();
+      this.showToast("登录成功", "success");
+      this.showApp();
+    } catch (e) {
+      this.showToast(e.message || "数据库连接失败，请检查网络后重试", "error");
     }
   }
 
