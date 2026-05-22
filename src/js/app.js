@@ -250,6 +250,50 @@ function drawQRCode(canvas, text) {
   ctx.fillText("QR", canvas.width / 2, canvas.height / 2);
 }
 
+function dataUrlToBlob(dataUrl) {
+  var parts = dataUrl.split(",");
+  var mime = parts[0].match(/:(.*?);/)[1];
+  var bytes = atob(parts[1]);
+  var buf = new ArrayBuffer(bytes.length);
+  var view = new Uint8Array(buf);
+  for (var i = 0; i < bytes.length; i++) {
+    view[i] = bytes.charCodeAt(i);
+  }
+  return new Blob([buf], { type: mime });
+}
+
+async function uploadImageToStorage(dataUrl, sampleId, suffix) {
+  if (!supabaseClient || !dataUrl || !dataUrl.startsWith("data:"))
+    return dataUrl;
+  var blob = dataUrlToBlob(dataUrl);
+  var ext = blob.type === "image/png" ? "png" : "jpg";
+  var path = "samples/" + sampleId + "_" + suffix + "." + ext;
+  var oldUrl = dataUrl;
+  var { error } = await supabaseClient.storage
+    .from("sample-images")
+    .upload(path, blob, { upsert: true, contentType: blob.type });
+  if (error) {
+    console.warn("Storage upload failed:", error);
+    return dataUrl;
+  }
+  var { data: publicData } = supabaseClient.storage
+    .from("sample-images")
+    .getPublicUrl(path);
+  return publicData.publicUrl;
+}
+
+async function deleteImageFromStorage(imageUrl) {
+  if (!supabaseClient || !imageUrl || !imageUrl.includes("sample-images"))
+    return;
+  var parts = imageUrl.split("/sample-images/");
+  if (parts.length < 2) return;
+  var path = parts[1];
+  supabaseClient.storage
+    .from("sample-images")
+    .remove([path])
+    .catch(function () {});
+}
+
 var BASE_PATH = (function () {
   var p = window.location.pathname;
   var i = p.lastIndexOf("/");
@@ -685,6 +729,10 @@ class App {
       document.getElementById("imagePreview").classList.remove("has-image");
       document.getElementById("sampleImagePreview").src = "";
       document.getElementById("imagePlaceholder").style.display = "";
+      document.getElementById("sampleImagePreview").dataset.storageUrl = "";
+      document.getElementById(
+        "sampleImagePreview",
+      ).dataset.thumbnailStorageUrl = "";
 
       const project = Store.getProjects().find(
         (p) => p.id === this.currentProjectId,
@@ -1197,11 +1245,19 @@ class App {
         e.stopPropagation();
         if (confirm("确定要删除该类别及其所有关联样板吗？")) {
           const id = btn.dataset.id;
+          var allS = Store.getSamples();
+          allS
+            .filter(function (s) {
+              return s.projectId === id;
+            })
+            .forEach(function (s) {
+              if (s.imageUrl) deleteImageFromStorage(s.imageUrl);
+              if (s.thumbnailUrl) deleteImageFromStorage(s.thumbnailUrl);
+            });
           let projects = Store.getProjects();
           projects = projects.filter((p) => p.id !== id);
           Store.saveProjects(projects);
-          let samples = Store.getSamples();
-          samples = samples.filter((s) => s.projectId !== id);
+          let samples = allS.filter((s) => s.projectId !== id);
           Store.saveSamples(samples);
           Store.deleteProjectFromDB(id).catch((e) =>
             console.warn("DB delete project failed:", e),
@@ -1389,6 +1445,13 @@ class App {
         e.stopPropagation();
         if (confirm("确定要删除该样板吗？")) {
           const id = btn.dataset.id;
+          var s = samples.find(function (s) {
+            return s.id === id;
+          });
+          if (s) {
+            if (s.imageUrl) deleteImageFromStorage(s.imageUrl);
+            if (s.thumbnailUrl) deleteImageFromStorage(s.thumbnailUrl);
+          }
           let allSamples = Store.getSamples();
           allSamples = allSamples.filter((s) => s.id !== id);
           Store.saveSamples(allSamples);
@@ -1743,18 +1806,33 @@ class App {
     let thumbnailUrl =
       document.getElementById("sampleImagePreview").dataset.thumbnailUrl || "";
     if (imageUrl && imageUrl.startsWith("data:")) {
-      const compressed = await compressImage(
+      var preview = document.getElementById("sampleImagePreview");
+      var oldImageUrl = preview.dataset.storageUrl || "";
+      var sampleId = document.getElementById("sampleId").value || generateId();
+      if (!document.getElementById("sampleId").value) {
+        document.getElementById("sampleId").value = sampleId;
+      }
+      var compressed = await compressImage(
         await (await fetch(imageUrl)).blob(),
         600,
         0.8,
       );
       if (compressed) {
-        thumbnailUrl = await compressImage(
-          await (await fetch(imageUrl)).blob(),
+        imageUrl = await uploadImageToStorage(compressed, sampleId, "full");
+        var thumb = await compressImage(
+          await (
+            await fetch(imageUrl.startsWith("http") ? imageUrl : compressed)
+          ).blob(),
           200,
           0.7,
         );
-        imageUrl = compressed;
+        if (thumb)
+          thumbnailUrl = await uploadImageToStorage(thumb, sampleId, "thumb");
+      }
+      if (oldImageUrl && oldImageUrl.includes("sample-images")) {
+        deleteImageFromStorage(oldImageUrl);
+        var oldThumb = preview.dataset.thumbnailStorageUrl || "";
+        if (oldThumb) deleteImageFromStorage(oldThumb);
       }
     }
 
@@ -1847,6 +1925,14 @@ class App {
       document.getElementById("sampleImagePreview").src = sample.imageUrl;
       document.getElementById("sampleImagePreview").dataset.thumbnailUrl =
         sample.thumbnailUrl || "";
+      document.getElementById("sampleImagePreview").dataset.storageUrl =
+        sample.imageUrl.includes("sample-images") ? sample.imageUrl : "";
+      document.getElementById(
+        "sampleImagePreview",
+      ).dataset.thumbnailStorageUrl =
+        sample.thumbnailUrl && sample.thumbnailUrl.includes("sample-images")
+          ? sample.thumbnailUrl
+          : "";
       document.getElementById("imagePreview").classList.add("has-image");
       document.getElementById("imagePlaceholder").style.display = "none";
     } else {

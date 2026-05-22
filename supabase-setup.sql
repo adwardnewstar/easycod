@@ -92,6 +92,30 @@ ALTER TABLE daily_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE field_visibility ENABLE ROW LEVEL SECURITY;
 
 -- 6. 创建存储桶用于图片存储
+INSERT INTO storage.buckets (id, name, public) VALUES ('sample-images', 'sample-images', true)
+ON CONFLICT (id) DO NOTHING;
+
+DROP POLICY IF EXISTS "Public can view sample images" ON storage.objects;
+CREATE POLICY "Public can view sample images"
+  ON storage.objects FOR SELECT
+  USING (bucket_id = 'sample-images' AND name LIKE 'samples/%');
+
+DROP POLICY IF EXISTS "Authenticated can upload sample images" ON storage.objects;
+CREATE POLICY "Authenticated can upload sample images"
+  ON storage.objects FOR INSERT
+  WITH CHECK (bucket_id = 'sample-images' AND name LIKE 'samples/%');
+
+DROP POLICY IF EXISTS "Authenticated can update sample images" ON storage.objects;
+CREATE POLICY "Authenticated can update sample images"
+  ON storage.objects FOR UPDATE
+  USING (bucket_id = 'sample-images' AND name LIKE 'samples/%');
+
+DROP POLICY IF EXISTS "Authenticated can delete sample images" ON storage.objects;
+CREATE POLICY "Authenticated can delete sample images"
+  ON storage.objects FOR DELETE
+  USING (bucket_id = 'sample-images' AND name LIKE 'samples/%');
+
+-- 6. 创建存储桶用于图片存储
 -- 在 Supabase 控制台 Storage 中创建名为 'sample-images' 的存储桶
 -- 或在 SQL 中执行:
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('sample-images', 'sample-images', true);
@@ -165,11 +189,11 @@ CREATE POLICY "Users can update own field visibility"
   USING (auth.uid() = user_id);
 
 -- 9. 创建索引
-CREATE INDEX idx_samples_project_id ON samples(project_id);
-CREATE INDEX idx_daily_codes_date ON daily_codes(date);
-CREATE INDEX idx_projects_user_id ON projects(user_id);
-CREATE INDEX idx_samples_user_id ON samples(user_id);
-CREATE INDEX idx_field_visibility_user_id ON field_visibility(user_id);
+CREATE INDEX IF NOT EXISTS idx_samples_project_id ON samples(project_id);
+CREATE INDEX IF NOT EXISTS idx_daily_codes_date ON daily_codes(date);
+CREATE INDEX IF NOT EXISTS idx_projects_user_id ON projects(user_id);
+CREATE INDEX IF NOT EXISTS idx_samples_user_id ON samples(user_id);
+CREATE INDEX IF NOT EXISTS idx_field_visibility_user_id ON field_visibility(user_id);
 
 -- 11. 公共读策略: 允许通过二维码分享样板详情（无需登录即可查看）
 -- 使用 UUID 作为 ID，难以猜测，安全性通过 ID 随机性保证
