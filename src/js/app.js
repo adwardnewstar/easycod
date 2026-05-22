@@ -845,15 +845,7 @@ class App {
         );
       }
     } else {
-      this.user = {
-        id: generateId(),
-        email,
-        name: email.split("@")[0],
-        isDemo: false,
-      };
-      Store.saveSession(this.user);
-      this.showToast("登录成功（无数据库连接）", "success");
-      this.showApp();
+      this.showToast("数据库未连接，请检查网络后刷新页面重试", "error");
     }
   }
 

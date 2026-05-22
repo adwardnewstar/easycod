@@ -67,16 +67,19 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS update_projects_updated_at ON projects;
 CREATE TRIGGER update_projects_updated_at
   BEFORE UPDATE ON projects
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_samples_updated_at ON samples;
 CREATE TRIGGER update_samples_updated_at
   BEFORE UPDATE ON samples
   FOR EACH ROW
   EXECUTE FUNCTION update_updated_at();
 
+DROP TRIGGER IF EXISTS update_field_visibility_updated_at ON field_visibility;
 CREATE TRIGGER update_field_visibility_updated_at
   BEFORE UPDATE ON field_visibility
   FOR EACH ROW
@@ -94,56 +97,69 @@ ALTER TABLE field_visibility ENABLE ROW LEVEL SECURITY;
 -- INSERT INTO storage.buckets (id, name, public) VALUES ('sample-images', 'sample-images', true);
 
 -- 7. 创建策略: 用户只能看到自己的数据
+DROP POLICY IF EXISTS "Users can view own projects" ON projects;
 CREATE POLICY "Users can view own projects"
   ON projects FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own projects" ON projects;
 CREATE POLICY "Users can insert own projects"
   ON projects FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own projects" ON projects;
 CREATE POLICY "Users can update own projects"
   ON projects FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own projects" ON projects;
 CREATE POLICY "Users can delete own projects"
   ON projects FOR DELETE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can view own samples" ON samples;
 CREATE POLICY "Users can view own samples"
   ON samples FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own samples" ON samples;
 CREATE POLICY "Users can insert own samples"
   ON samples FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own samples" ON samples;
 CREATE POLICY "Users can update own samples"
   ON samples FOR UPDATE
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can delete own samples" ON samples;
 CREATE POLICY "Users can delete own samples"
   ON samples FOR DELETE
   USING (auth.uid() = user_id);
 
 -- 8. 邀请码表: 任何人都可以查看今日邀请码
+DROP POLICY IF EXISTS "Anyone can view today codes" ON daily_codes;
 CREATE POLICY "Anyone can view today codes"
   ON daily_codes FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Only authenticated users can insert codes" ON daily_codes;
 CREATE POLICY "Only authenticated users can insert codes"
   ON daily_codes FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
 
 -- 8.5 字段可见性策略: 用户只能管理自己的可见性设置
+DROP POLICY IF EXISTS "Users can view own field visibility" ON field_visibility;
 CREATE POLICY "Users can view own field visibility"
   ON field_visibility FOR SELECT
   USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can insert own field visibility" ON field_visibility;
 CREATE POLICY "Users can insert own field visibility"
   ON field_visibility FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own field visibility" ON field_visibility;
 CREATE POLICY "Users can update own field visibility"
   ON field_visibility FOR UPDATE
   USING (auth.uid() = user_id);
@@ -157,10 +173,12 @@ CREATE INDEX idx_field_visibility_user_id ON field_visibility(user_id);
 
 -- 11. 公共读策略: 允许通过二维码分享样板详情（无需登录即可查看）
 -- 使用 UUID 作为 ID，难以猜测，安全性通过 ID 随机性保证
+DROP POLICY IF EXISTS "Public can view samples" ON samples;
 CREATE POLICY "Public can view samples"
   ON samples FOR SELECT
   USING (true);
 
+DROP POLICY IF EXISTS "Public can view projects" ON projects;
 CREATE POLICY "Public can view projects"
   ON projects FOR SELECT
   USING (true);
