@@ -1196,6 +1196,7 @@ class App {
           procurement: isProc,
           procurementStart,
           procurementEnd,
+          user_id: this.user?.id || projects[index].userId || "demo-user",
           updatedAt: new Date().toISOString(),
         };
         Store.saveProjects(projects);
@@ -1225,6 +1226,7 @@ class App {
         procurementStart: procurementStart || "",
         procurementEnd: procurementEnd || "",
         userId: this.user?.id || "demo-user",
+        user_id: this.user?.id || "demo-user",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
@@ -1708,6 +1710,7 @@ class App {
           procurementRange,
           imageUrl: imageUrl || samples[index].imageUrl,
           thumbnailUrl: thumbnailUrl || samples[index].thumbnailUrl,
+          user_id: this.user?.id || samples[index].userId || "demo-user",
           updatedAt: new Date().toISOString(),
         };
         Store.saveSamples(samples);
@@ -1736,6 +1739,7 @@ class App {
         material: "",
         procurementRange: procurementRange,
         userId: this.user?.id || "demo-user",
+        user_id: this.user?.id || "demo-user",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
