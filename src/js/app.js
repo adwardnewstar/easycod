@@ -294,6 +294,32 @@ async function deleteImageFromStorage(imageUrl) {
     .catch(function () {});
 }
 
+function toSnakeCase(obj) {
+  var r = {};
+  for (var k in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, k)) {
+      var sk = k.replace(/[A-Z]/g, function (m) {
+        return "_" + m.toLowerCase();
+      });
+      r[sk] = obj[k];
+    }
+  }
+  return r;
+}
+
+function fromSnakeCase(obj) {
+  var r = {};
+  for (var k in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, k)) {
+      var ck = k.replace(/_([a-z])/g, function (m, c) {
+        return c.toUpperCase();
+      });
+      r[ck] = obj[k];
+    }
+  }
+  return r;
+}
+
 var BASE_PATH = (function () {
   var p = window.location.pathname;
   var i = p.lastIndexOf("/");
@@ -429,7 +455,7 @@ class Store {
       .order("created_at", { ascending: false });
     if (error) throw error;
     if (data && data.length > 0) {
-      Store.set(STORAGE_KEYS.projects, data);
+      Store.set(STORAGE_KEYS.projects, data.map(fromSnakeCase));
     }
   }
 
@@ -442,15 +468,17 @@ class Store {
       .order("created_at", { ascending: false });
     if (error) throw error;
     if (data && data.length > 0) {
-      Store.set(STORAGE_KEYS.samples, data);
+      Store.set(STORAGE_KEYS.samples, data.map(fromSnakeCase));
     }
   }
 
   static async upsertProjectToDB(project) {
     if (!supabaseClient || !window.app?.user?.id) return;
-    const { error } = await supabaseClient.from("projects").upsert(project, {
-      onConflict: "id",
-    });
+    const { error } = await supabaseClient
+      .from("projects")
+      .upsert(toSnakeCase(project), {
+        onConflict: "id",
+      });
     if (error) throw error;
   }
 
@@ -474,9 +502,11 @@ class Store {
 
   static async upsertSampleToDB(sample) {
     if (!supabaseClient || !window.app?.user?.id) return;
-    const { error } = await supabaseClient.from("samples").upsert(sample, {
-      onConflict: "id",
-    });
+    const { error } = await supabaseClient
+      .from("samples")
+      .upsert(toSnakeCase(sample), {
+        onConflict: "id",
+      });
     if (error) throw error;
   }
 
