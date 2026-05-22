@@ -183,6 +183,29 @@ async function compressImagesForSample(file) {
   return { imageUrl, thumbnailUrl };
 }
 
+function getProcurementIndicator(sample, project) {
+  const isProc = project && project.procurement;
+  let state, symbol, cls;
+  if (!isProc) {
+    state = "非集采";
+    symbol = "✕";
+    cls = "proc-non";
+  } else {
+    const range =
+      sample.procurementRange || (sample.procurement ? "范围内" : "范围外");
+    if (range === "范围内") {
+      state = "集采范围内";
+      symbol = "●";
+      cls = "proc-in";
+    } else {
+      state = "集采范围外";
+      symbol = "■";
+      cls = "proc-out";
+    }
+  }
+  return { state, symbol, cls };
+}
+
 class Store {
   static get(key) {
     try {
@@ -1543,18 +1566,22 @@ class App {
         h = startH;
 
       const cls = handle.className;
-      if (cls.includes("e")) {
+      const isE = cls.includes("crop-handle-e");
+      const isW = cls.includes("crop-handle-w");
+      const isS = cls.includes("crop-handle-s");
+      const isN = cls.includes("crop-handle-n");
+      if (isE) {
         w = Math.max(minSize, startW + dx);
       }
-      if (cls.includes("w")) {
+      if (isW) {
         const nw = Math.max(minSize, startW - dx);
         l = startL + startW - nw;
         w = nw;
       }
-      if (cls.includes("s")) {
+      if (isS) {
         h = Math.max(minSize, startH + dy);
       }
-      if (cls.includes("n")) {
+      if (isN) {
         const nh = Math.max(minSize, startH - dy);
         t = startT + startH - nh;
         h = nh;
@@ -1886,7 +1913,7 @@ class App {
     `;
 
     const qrCanvas = document.getElementById("detailQrCode");
-    QRCodeGenerator.draw(qrCanvas, qrUrl, 80);
+    QRCode.toCanvas(qrCanvas, qrUrl);
 
     container.querySelectorAll(".cell-image").forEach((img) => {
       img.addEventListener("click", (e) => {
@@ -1914,6 +1941,7 @@ class App {
       <div class="print-label">
         <div class="print-label-category">${project ? project.name : ""}</div>
         <div class="print-label-header">${sample.name}</div>
+        <span class="proc-badge ${getProcurementIndicator(sample, project).cls}">${getProcurementIndicator(sample, project).symbol}</span>
         <div class="print-label-row">
           <span class="label">型号：</span>
           <span class="value">${sample.model || "-"}</span>
@@ -1958,7 +1986,7 @@ class App {
     setTimeout(() => {
       const canvas = document.getElementById("modalQrCode");
       if (canvas) {
-        QRCodeGenerator.draw(canvas, qrUrl, 80);
+        QRCode.toCanvas(canvas, qrUrl);
       }
       const label = modal.querySelector(".print-label");
       if (label) {
@@ -2025,6 +2053,10 @@ class App {
         <div class="print-label" data-id="${sample.id}">
           <div class="print-label-category">${project ? project.name : ""}</div>
           <div class="print-label-header">${sample.name}</div>
+          ${(function () {
+            const pi = getProcurementIndicator(sample, project);
+            return `<span class="proc-badge ${pi.cls}">${pi.symbol}</span>`;
+          })()}
           <div class="print-label-row">
             <span class="label">型号：</span>
             <span class="value">${sample.model || "-"}</span>
@@ -2073,7 +2105,7 @@ class App {
       const canvas = document.getElementById(`qr-${sample.id}`);
       if (canvas) {
         const qrUrl = `${window.location.origin}/sample-detail.html?id=${sample.id}`;
-        QRCodeGenerator.draw(canvas, qrUrl, 80);
+        QRCode.toCanvas(canvas, qrUrl);
       }
     });
 
