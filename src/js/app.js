@@ -234,7 +234,11 @@ function drawQRCode(canvas, text) {
   ctx.fillText("QR", canvas.width / 2, canvas.height / 2);
 }
 
-var BASE_PATH = window.location.pathname.replace(/\/?[^/]*$/, "");
+var BASE_PATH = (function () {
+  var p = window.location.pathname;
+  var i = p.lastIndexOf("/");
+  return i >= 0 ? p.substring(0, i + 1) : "/";
+})();
 
 function qrPageUrl(sampleId) {
   return (
@@ -819,24 +823,6 @@ class App {
           password,
         });
         if (error) {
-          if (
-            error.message &&
-            (error.message.includes("Failed to fetch") ||
-              error.message.includes("NetworkError") ||
-              error.message.includes("Network Error"))
-          ) {
-            this.showToast("数据库连接失败，将以离线模式登录", "warning");
-            this.user = {
-              id: generateId(),
-              email,
-              name: email.split("@")[0],
-              isDemo: false,
-            };
-            Store.saveSession(this.user);
-            this.showToast("已离线登录", "success");
-            this.showApp();
-            return;
-          }
           this.showToast(error.message, "error");
           return;
         }
@@ -853,16 +839,10 @@ class App {
         this.showToast("登录成功", "success");
         this.showApp();
       } catch (e) {
-        this.showToast("数据库连接失败，已离线登录", "warning");
-        this.user = {
-          id: generateId(),
-          email,
-          name: email.split("@")[0],
-          isDemo: false,
-        };
-        Store.saveSession(this.user);
-        this.showToast("已离线登录", "success");
-        this.showApp();
+        this.showToast(
+          e.message || "数据库连接失败，请检查网络后重试",
+          "error",
+        );
       }
     } else {
       this.user = {

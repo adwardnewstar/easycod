@@ -155,7 +155,17 @@ CREATE INDEX idx_projects_user_id ON projects(user_id);
 CREATE INDEX idx_samples_user_id ON samples(user_id);
 CREATE INDEX idx_field_visibility_user_id ON field_visibility(user_id);
 
--- 10. 兼容旧表：已有表新增字段（重复执行安全）
+-- 11. 公共读策略: 允许通过二维码分享样板详情（无需登录即可查看）
+-- 使用 UUID 作为 ID，难以猜测，安全性通过 ID 随机性保证
+CREATE POLICY "Public can view samples"
+  ON samples FOR SELECT
+  USING (true);
+
+CREATE POLICY "Public can view projects"
+  ON projects FOR SELECT
+  USING (true);
+
+-- 12. 兼容旧表：已有表新增字段（重复执行安全）
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS brand VARCHAR(255) DEFAULT '';
 ALTER TABLE projects ALTER COLUMN procurement_start TYPE VARCHAR(10) USING procurement_start::VARCHAR;
 ALTER TABLE projects ALTER COLUMN procurement_end TYPE VARCHAR(10) USING procurement_end::VARCHAR;

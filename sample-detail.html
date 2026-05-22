@@ -28,6 +28,9 @@
       </div>
     </div>
     <script>
+      var SUPABASE_URL = "https://vqoortdzgvllyxplduxq.supabase.co";
+      var SUPABASE_ANON_KEY = "sb_publishable_arXBSdeuLwK2UkZkTyDfZg_Zmr5yIqI";
+
       var STORAGE_KEYS = {
         projects: "easycod_projects",
         samples: "easycod_samples",
@@ -111,7 +114,7 @@
           loadingEl.style.display = "none";
           errorEl.style.display = "block";
           document.getElementById("errorMessage").textContent =
-            "\u7F3A\u5C11\u6837\u677F ID \u53C2\u6570";
+            "缺少样板 ID 参数";
           return;
         }
 
@@ -119,156 +122,236 @@
         var sample = samples.find(function (s) {
           return s.id === sid;
         });
+        var projects = getProjects();
 
-        if (!sample) {
+        function renderSample(sample, projects) {
+          var project = projects.find(function (p) {
+            return p.id === sample.projectId;
+          });
+
+          loadingEl.style.display = "none";
+          detailEl.style.display = "block";
+
+          document.getElementById("sampleName").textContent =
+            sample.name || "-";
+          document.getElementById("sampleCode").textContent =
+            sample.code || "-";
+
+          var vis = getFieldVisibility();
+          var currentCode = getDailyCode();
+
+          var allFields = [
+            {
+              key: null,
+              label: "类别",
+              val: project ? project.name : "-",
+            },
+            { key: null, label: "型号", val: sample.model || "-" },
+            { key: null, label: "品牌", val: sample.brand || "-" },
+            {
+              key: "specs",
+              label: "规格",
+              val: sample.specs || "-",
+            },
+            {
+              key: "color",
+              label: "颜色",
+              val: sample.color || "-",
+            },
+            {
+              key: "material",
+              label: "材质",
+              val: sample.material || "-",
+            },
+            {
+              key: "description",
+              label: "描述",
+              val: sample.description || "-",
+            },
+            {
+              key: "image",
+              label: "图片",
+              val: sample.imageUrl || null,
+              isImage: true,
+            },
+          ];
+
+          var pub = [];
+          var inviteFields = [];
+
+          allFields.forEach(function (f) {
+            if (f.key === null) {
+              pub.push(f);
+              return;
+            }
+            var state = vis[f.key] || "邀请";
+            if (state === "显示") {
+              pub.push(f);
+            } else if (state === "邀请") {
+              inviteFields.push(f);
+            }
+          });
+
+          function renderFields(list) {
+            var h = "";
+            list.forEach(function (f) {
+              if (f.isImage && f.val) {
+                h += '<div class="sd-row">';
+                h += '<span class="sd-lbl">' + esc(f.label) + "</span>";
+                h +=
+                  '<div class="sd-img-wrap"><img src="' +
+                  esc(f.val) +
+                  '" class="sd-img"></div>';
+                h += "</div>";
+              } else {
+                h += '<div class="sd-row">';
+                h += '<span class="sd-lbl">' + esc(f.label) + "</span>";
+                h += '<span class="sd-val">' + esc(f.val) + "</span>";
+                h += "</div>";
+              }
+            });
+            return h;
+          }
+
+          var hasRestricted = inviteFields.length > 0;
+
+          var body = "";
+          var isProc = project && project.procurement;
+
+          body += '<div class="sd-section">';
+          body += '<div class="sd-section-title">基础信息</div>';
+          body += renderFields(pub);
+          body +=
+            '<div class="sd-row"><span class="sd-lbl">是否集采</span><span class="sd-val">' +
+            (isProc ? "集采" : "非集采") +
+            "</span></div>";
+          if (isProc) {
+            body +=
+              '<div class="sd-row"><span class="sd-lbl">集采时间</span><span class="sd-val">' +
+              formatDate(project.procurementStart) +
+              " - " +
+              formatDate(project.procurementEnd) +
+              "</span></div>";
+          }
+          body +=
+            '<div class="sd-row"><span class="sd-lbl">范围内外</span><span class="sd-val">' +
+            (isProc
+              ? sample.procurementRange ||
+                (sample.procurement ? "范围内" : "范围外")
+              : "范围外") +
+            "</span></div>";
+          body += "</div>";
+
+          if (hasRestricted) {
+            body += '<div class="sd-invite">';
+            body +=
+              '<button class="sd-invite-btn" id="invitePrompt">输入邀请码查看详情</button>';
+            body += '<div class="sd-invite-form" id="inviteForm">';
+            body +=
+              '<input type="text" id="inviteInput" placeholder="邀请码" maxlength="6">';
+            body +=
+              '<button id="inviteSubmit" class="btn btn-primary">验证</button>';
+            body +=
+              '<div class="sd-invite-error" id="inviteError">邀请码错误</div>';
+            body += "</div></div>";
+
+            body +=
+              '<div class="sd-section" id="restrictedSection" style="display:none">';
+            body += '<div class="sd-section-title">扩展信息</div>';
+            body += renderFields(inviteFields);
+            body += "</div>";
+          }
+
+          document.getElementById("detailBody").innerHTML = body;
+
+          var promptEl = document.getElementById("invitePrompt");
+          if (promptEl) {
+            promptEl.addEventListener("click", function () {
+              promptEl.style.display = "none";
+              var form = document.getElementById("inviteForm");
+              form.style.display = "flex";
+              document.getElementById("inviteInput").focus();
+            });
+          }
+
+          var subBtn = document.getElementById("inviteSubmit");
+          if (subBtn) {
+            subBtn.addEventListener("click", function () {
+              var inp = document
+                .getElementById("inviteInput")
+                .value.trim()
+                .toUpperCase();
+              var err = document.getElementById("inviteError");
+              if (inp === currentCode) {
+                err.style.display = "none";
+                var rs = document.getElementById("restrictedSection");
+                if (rs) rs.style.display = "block";
+                document.getElementById("inviteForm").style.display = "none";
+              } else {
+                err.style.display = "block";
+              }
+            });
+          }
+
+          var inpEl = document.getElementById("inviteInput");
+          if (inpEl) {
+            inpEl.addEventListener("keydown", function (e) {
+              if (e.key === "Enter")
+                document.getElementById("inviteSubmit").click();
+            });
+          }
+        }
+
+        if (sample) {
+          renderSample(sample, projects);
+        } else if (
+          typeof supabase !== "undefined" &&
+          "SUPABASE_URL" in window &&
+          "SUPABASE_ANON_KEY" in window
+        ) {
+          var sb = supabase.createClient(
+            window.SUPABASE_URL,
+            window.SUPABASE_ANON_KEY,
+          );
+          sb.from("samples")
+            .select("*")
+            .eq("id", sid)
+            .maybeSingle()
+            .then(function (res) {
+              if (res.error || !res.data) {
+                loadingEl.style.display = "none";
+                errorEl.style.display = "block";
+                document.getElementById("errorMessage").textContent =
+                  "未找到该样板信息";
+                return;
+              }
+              var s = res.data;
+              sb.from("projects")
+                .select("*")
+                .eq("id", s.project_id)
+                .maybeSingle()
+                .then(function (pres) {
+                  var ps = [];
+                  if (!pres.error && pres.data) {
+                    ps = [pres.data];
+                  }
+                  renderSample(s, ps);
+                });
+            })
+            .catch(function () {
+              loadingEl.style.display = "none";
+              errorEl.style.display = "block";
+              document.getElementById("errorMessage").textContent =
+                "未找到该样板信息";
+            });
+        } else {
           loadingEl.style.display = "none";
           errorEl.style.display = "block";
           document.getElementById("errorMessage").textContent =
-            "\u672A\u627E\u5230\u8BE5\u6837\u677F\u4FE1\u606F";
-          return;
-        }
-
-        var projects = getProjects();
-        var project = projects.find(function (p) {
-          return p.id === sample.projectId;
-        });
-
-        loadingEl.style.display = "none";
-        detailEl.style.display = "block";
-
-        document.getElementById("sampleName").textContent = sample.name || "-";
-        document.getElementById("sampleCode").textContent = sample.code || "-";
-
-        var vis = getFieldVisibility();
-        var currentCode = getDailyCode();
-
-        var allFields = [
-          {
-            key: null,
-            label: "\u7C7B\u522B",
-            val: project ? project.name : "-",
-          },
-          { key: null, label: "\u578B\u53F7", val: sample.model || "-" },
-          { key: null, label: "品牌", val: sample.brand || "-" },
-          { key: "specs", label: "\u89C4\u683C", val: sample.specs || "-" },
-          { key: "color", label: "\u989C\u8272", val: sample.color || "-" },
-          {
-            key: "material",
-            label: "\u6750\u8D28",
-            val: sample.material || "-",
-          },
-          {
-            key: "description",
-            label: "\u63CF\u8FF0",
-            val: sample.description || "-",
-          },
-          {
-            key: "image",
-            label: "\u56FE\u7247",
-            val: sample.imageUrl || null,
-            isImage: true,
-          },
-        ];
-
-        var pub = [];
-        var inviteFields = [];
-
-        allFields.forEach(function (f) {
-          if (f.key === null) {
-            pub.push(f);
-            return;
-          }
-          var state = vis[f.key] || "\u9080\u8BF7";
-          if (state === "\u663E\u793A") {
-            pub.push(f);
-          } else if (state === "\u9080\u8BF7") {
-            inviteFields.push(f);
-          }
-        });
-
-        function renderFields(list) {
-          var h = "";
-          list.forEach(function (f) {
-            if (f.isImage && f.val) {
-              h += '<div class="sd-row">';
-              h += '<span class="sd-lbl">' + esc(f.label) + "</span>";
-              h += '<div class="sd-img-wrap"><img src="' + esc(f.val) + '" class="sd-img"></div>';
-              h += "</div>";
-            } else {
-              h += '<div class="sd-row">';
-              h += '<span class="sd-lbl">' + esc(f.label) + "</span>";
-              h += '<span class="sd-val">' + esc(f.val) + "</span>";
-              h += "</div>";
-            }
-          });
-          return h;
-        }
-
-        var hasRestricted = inviteFields.length > 0;
-
-        var body = "";
-        var isProc = project && project.procurement;
-
-        body += '<div class="sd-section">';
-        body += '<div class="sd-section-title">基础信息</div>';
-        body += renderFields(pub);
-        body += '<div class="sd-row"><span class="sd-lbl">是否集采</span><span class="sd-val">' + (isProc ? "集采" : "非集采") + "</span></div>";
-        if (isProc) {
-          body += '<div class="sd-row"><span class="sd-lbl">集采时间</span><span class="sd-val">' + formatDate(project.procurementStart) + " - " + formatDate(project.procurementEnd) + "</span></div>";
-        }
-        body += '<div class="sd-row"><span class="sd-lbl">范围内外</span><span class="sd-val">' + (isProc ? sample.procurementRange || (sample.procurement ? "范围内" : "范围外") : "范围外") + "</span></div>";
-        body += "</div>";
-
-        if (hasRestricted) {
-          body += '<div class="sd-invite">';
-          body += '<button class="sd-invite-btn" id="invitePrompt">输入邀请码查看详情</button>';
-          body += '<div class="sd-invite-form" id="inviteForm">';
-          body += '<input type="text" id="inviteInput" placeholder="邀请码" maxlength="6">';
-          body += '<button id="inviteSubmit" class="btn btn-primary">验证</button>';
-          body += '<div class="sd-invite-error" id="inviteError">邀请码错误</div>';
-          body += "</div></div>";
-
-          body += '<div class="sd-section" id="restrictedSection" style="display:none">';
-          body += '<div class="sd-section-title">扩展信息</div>';
-          body += renderFields(inviteFields);
-          body += "</div>";
-        }
-
-        document.getElementById("detailBody").innerHTML = body;
-
-        var promptEl = document.getElementById("invitePrompt");
-        if (promptEl) {
-          promptEl.addEventListener("click", function () {
-            promptEl.style.display = "none";
-            var form = document.getElementById("inviteForm");
-            form.style.display = "flex";
-            document.getElementById("inviteInput").focus();
-          });
-        }
-
-        var subBtn = document.getElementById("inviteSubmit");
-        if (subBtn) {
-          subBtn.addEventListener("click", function () {
-            var inp = document.getElementById("inviteInput").value.trim().toUpperCase();
-            var err = document.getElementById("inviteError");
-            if (inp === currentCode) {
-              err.style.display = "none";
-              var rs = document.getElementById("restrictedSection");
-              if (rs) rs.style.display = "block";
-              document.getElementById("inviteForm").style.display = "none";
-            } else {
-              err.style.display = "block";
-            }
-          });
-        }
-
-        var inpEl = document.getElementById("inviteInput");
-        if (inpEl) {
-          inpEl.addEventListener("keydown", function (e) {
-            if (e.key === "Enter") document.getElementById("inviteSubmit").click();
-          });
+            "未找到该样板信息";
         }
       });
     </script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   </body>
 </html>
