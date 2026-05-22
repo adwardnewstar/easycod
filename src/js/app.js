@@ -234,6 +234,14 @@ function drawQRCode(canvas, text) {
   ctx.fillText("QR", canvas.width / 2, canvas.height / 2);
 }
 
+var BASE_PATH = window.location.pathname.replace(/\/?[^/]*$/, "");
+
+function qrPageUrl(sampleId) {
+  return (
+    window.location.origin + BASE_PATH + "sample-detail.html?id=" + sampleId
+  );
+}
+
 class Store {
   static get(key) {
     try {
@@ -1095,7 +1103,7 @@ class App {
     if (projects.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="icon"><img src="/src/icon/file.svg" alt="empty" class="empty-icon"></div>
+          <div class="icon"><img src="src/icon/file.svg" alt="empty" class="empty-icon"></div>
           <p>暂无类别，点击右上角"新建类别"开始</p>
         </div>
       `;
@@ -1311,7 +1319,7 @@ class App {
     if (samples.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
-          <div class="icon"><img src="/src/icon/box.svg" alt="empty" class="empty-icon"></div>
+          <div class="icon"><img src="src/icon/box.svg" alt="empty" class="empty-icon"></div>
           <p>暂无样板，点击"录入样板"开始添加</p>
         </div>
       `;
@@ -1857,7 +1865,7 @@ class App {
     const project = Store.getProjects().find((p) => p.id === sample.projectId);
 
     const container = document.getElementById("sampleDetailContainer");
-    const qrUrl = `${window.location.origin}/sample-detail.html?id=${sample.id}`;
+    const qrUrl = qrPageUrl(sample.id);
 
     const procurementLabel = project && project.procurement ? "集采" : "非集采";
     const procurementBadge = `<span class="card-badge ${project && project.procurement ? "procurement" : "non-procurement"}" style="font-size:0.72rem;padding:1px 8px;">${procurementLabel}</span>`;
@@ -1962,7 +1970,7 @@ class App {
 
     const projects = Store.getProjects();
     const project = projects.find((p) => p.id === sample.projectId);
-    const qrUrl = `${window.location.origin}/sample-detail.html?id=${sample.id}`;
+    const qrUrl = qrPageUrl(sample.id);
 
     const modal = document.getElementById("labelPreviewModal");
     modal.innerHTML = `
@@ -2073,7 +2081,6 @@ class App {
     container.innerHTML = labelsToPrint
       .map((sample) => {
         const project = projects.find((p) => p.id === sample.projectId);
-        const qrUrl = `${window.location.origin}/sample-detail.html?id=${sample.id}`;
         const canvasId = `qr-${sample.id}`;
 
         return `
@@ -2127,8 +2134,7 @@ class App {
     labelsToPrint.forEach((sample) => {
       const canvas = document.getElementById(`qr-${sample.id}`);
       if (canvas) {
-        const qrUrl = `${window.location.origin}/sample-detail.html?id=${sample.id}`;
-        drawQRCode(canvas, qrUrl);
+        drawQRCode(canvas, qrPageUrl(sample.id));
       }
     });
 
