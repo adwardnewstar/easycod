@@ -206,6 +206,34 @@ function getProcurementIndicator(sample, project) {
   return { state, symbol, cls };
 }
 
+function drawQRCode(canvas, text) {
+  if (typeof qrcode !== "undefined") {
+    try {
+      var qr = qrcode(0, "M");
+      qr.addData(text);
+      qr.make();
+      var img = new Image();
+      img.onload = function () {
+        var ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        var pad = 6;
+        var size = canvas.width - pad * 2;
+        ctx.drawImage(img, pad, pad, size, size);
+      };
+      img.src = qr.createDataURL(4, 0);
+      return;
+    } catch (_) {}
+  }
+  var ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#eee";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#999";
+  ctx.font = "10px sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText("QR", canvas.width / 2, canvas.height / 2);
+}
+
 class Store {
   static get(key) {
     try {
@@ -1913,9 +1941,7 @@ class App {
     `;
 
     const qrCanvas = document.getElementById("detailQrCode");
-    if (typeof QRCode !== "undefined") {
-      QRCode.toCanvas(qrCanvas, qrUrl).catch(function () {});
-    }
+    drawQRCode(qrCanvas, qrUrl);
 
     container.querySelectorAll(".cell-image").forEach((img) => {
       img.addEventListener("click", (e) => {
@@ -1941,9 +1967,8 @@ class App {
     const modal = document.getElementById("labelPreviewModal");
     modal.innerHTML = `
       <div class="print-label">
-        <div class="print-label-category">${project ? project.name : ""}</div>
+        <div class="print-label-category">${project ? project.name : ""}<span class="proc-badge ${getProcurementIndicator(sample, project).cls}">${getProcurementIndicator(sample, project).symbol}</span></div>
         <div class="print-label-header">${sample.name}</div>
-        <span class="proc-badge ${getProcurementIndicator(sample, project).cls}">${getProcurementIndicator(sample, project).symbol}</span>
         <div class="print-label-row">
           <span class="label">型号：</span>
           <span class="value">${sample.model || "-"}</span>
@@ -1988,11 +2013,7 @@ class App {
     setTimeout(() => {
       const canvas = document.getElementById("modalQrCode");
       if (canvas) {
-        if (typeof QRCode !== "undefined") {
-          try {
-            QRCode.toCanvas(canvas, qrUrl);
-          } catch (_) {}
-        }
+        drawQRCode(canvas, qrUrl);
       }
       const label = modal.querySelector(".print-label");
       if (label) {
@@ -2057,12 +2078,8 @@ class App {
 
         return `
         <div class="print-label" data-id="${sample.id}">
-          <div class="print-label-category">${project ? project.name : ""}</div>
+          <div class="print-label-category">${project ? project.name : ""}<span class="proc-badge ${getProcurementIndicator(sample, project).cls}">${getProcurementIndicator(sample, project).symbol}</span></div>
           <div class="print-label-header">${sample.name}</div>
-          ${(function () {
-            const pi = getProcurementIndicator(sample, project);
-            return `<span class="proc-badge ${pi.cls}">${pi.symbol}</span>`;
-          })()}
           <div class="print-label-row">
             <span class="label">型号：</span>
             <span class="value">${sample.model || "-"}</span>
@@ -2111,11 +2128,7 @@ class App {
       const canvas = document.getElementById(`qr-${sample.id}`);
       if (canvas) {
         const qrUrl = `${window.location.origin}/sample-detail.html?id=${sample.id}`;
-        if (typeof QRCode !== "undefined") {
-          try {
-            QRCode.toCanvas(canvas, qrUrl);
-          } catch (_) {}
-        }
+        drawQRCode(canvas, qrUrl);
       }
     });
 
