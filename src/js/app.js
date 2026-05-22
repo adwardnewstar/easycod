@@ -98,6 +98,134 @@ function getChineseFirstTwoPinyin(str) {
     万: "W",
     亿: "Y",
     零: "L",
+    水: "S",
+    墨: "M",
+    江: "J",
+    南: "N",
+    东: "D",
+    鹏: "P",
+    将: "J",
+    军: "J",
+    马: "M",
+    可: "K",
+    波: "B",
+    诺: "N",
+    米: "M",
+    黄: "H",
+    洞: "D",
+    石: "S",
+    意: "Y",
+    大: "D",
+    利: "L",
+    灰: "H",
+    黑: "H",
+    金: "J",
+    花: "H",
+    白: "B",
+    麻: "M",
+    岗: "G",
+    岩: "Y",
+    芝: "Z",
+    俄: "E",
+    罗: "L",
+    斯: "S",
+    银: "Y",
+    龙: "L",
+    蓝: "L",
+    沙: "S",
+    红: "H",
+    绿: "L",
+    紫: "Z",
+    棕: "Z",
+    咖: "K",
+    啡: "F",
+    杏: "X",
+    浅: "Q",
+    深: "S",
+    中: "Z",
+    暖: "N",
+    冷: "L",
+    仿: "F",
+    古: "G",
+    木: "M",
+    地: "D",
+    板: "B",
+    瓷: "C",
+    砖: "Z",
+    通: "T",
+    体: "T",
+    天: "T",
+    然: "R",
+    抛: "P",
+    光: "G",
+    釉: "Y",
+    面: "M",
+    防: "F",
+    滑: "H",
+    磨: "M",
+    砂: "S",
+    新: "X",
+    国: "G",
+    现: "X",
+    代: "D",
+    简: "J",
+    约: "Y",
+    风: "F",
+    雅: "Y",
+    致: "Z",
+    经: "J",
+    典: "D",
+    奢: "S",
+    华: "H",
+    欧: "O",
+    式: "S",
+    美: "M",
+    田: "T",
+    法: "F",
+    式: "S",
+    艺: "Y",
+    术: "S",
+    理: "L",
+    纹: "W",
+    哑: "Y",
+    亮: "L",
+    精: "J",
+    工: "G",
+    星: "X",
+    空: "K",
+    闪: "S",
+    钻: "Z",
+    鱼: "Y",
+    肚: "D",
+    玉: "Y",
+    贝: "B",
+    冰: "B",
+    川: "C",
+    雪: "X",
+    山: "S",
+    云: "Y",
+    海: "H",
+    山: "S",
+    河: "H",
+    湖: "H",
+    泊: "B",
+    林: "L",
+    木: "M",
+    秋: "Q",
+    韵: "Y",
+    春: "C",
+    夏: "X",
+    冬: "D",
+    宫: "G",
+    殿: "D",
+    庭: "T",
+    院: "Y",
+    家: "J",
+    居: "J",
+    酒: "J",
+    店: "D",
+    餐: "C",
+    厅: "T",
     A: "A",
     B: "B",
     C: "C",
@@ -140,11 +268,41 @@ function getChineseFirstTwoPinyin(str) {
   return result.padEnd(2, "X");
 }
 
-function generateSampleCode(sampleName) {
+function generateSampleCode(sampleName, brand, seq) {
   const prefix = getChineseFirstTwoPinyin(sampleName);
-  const timestamp = Date.now().toString(36).toUpperCase();
-  const random = String(Math.floor(1000 + Math.random() * 9000));
-  return `${prefix}-${timestamp}-${random}`;
+  const middle = getChineseFirstTwoPinyin(brand || "");
+  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
+  let random = "";
+  for (let i = 0; i < 4; i++) {
+    random += chars[Math.floor(Math.random() * chars.length)];
+  }
+  const seqStr = String(seq).padStart(4, "0");
+  return `${seqStr}-${middle}-${prefix}-${random}`;
+}
+
+function nextSeqForProject(projectId) {
+  const samples = Store.getSamples();
+  const projectSamples = samples.filter((s) => s.projectId === projectId);
+  return projectSamples.length + 1;
+}
+
+function setSampleCodeFields(code) {
+  const seqInput = document.getElementById("sampleCodeSeq");
+  const suffixSpan = document.getElementById("sampleCodeSuffix");
+  if (!code || !code.includes("-")) {
+    seqInput.value = "";
+    suffixSpan.textContent = "";
+    return;
+  }
+  const dashIdx = code.indexOf("-");
+  seqInput.value = code.substring(0, dashIdx);
+  suffixSpan.textContent = code.substring(dashIdx);
+}
+
+function getSampleCode() {
+  const seq = document.getElementById("sampleCodeSeq").value.trim() || "0000";
+  const suffix = document.getElementById("sampleCodeSuffix").textContent;
+  return seq + suffix;
 }
 
 function generateDailyCode() {
@@ -268,7 +426,6 @@ async function uploadImageToStorage(dataUrl, sampleId, suffix) {
   var blob = dataUrlToBlob(dataUrl);
   var ext = blob.type === "image/png" ? "png" : "jpg";
   var path = "samples/" + sampleId + "_" + suffix + "." + ext;
-  var oldUrl = dataUrl;
   var { error } = await supabaseClient.storage
     .from("sample-images")
     .upload(path, blob, { upsert: true, contentType: blob.type });
@@ -276,18 +433,48 @@ async function uploadImageToStorage(dataUrl, sampleId, suffix) {
     console.warn("Storage upload failed:", error);
     return dataUrl;
   }
-  var { data: publicData } = supabaseClient.storage
+  var { data: signedData } = await supabaseClient.storage
     .from("sample-images")
-    .getPublicUrl(path);
-  return publicData.publicUrl;
+    .createSignedUrl(path, 604800);
+  return signedData ? signedData.signedUrl : dataUrl;
+}
+
+function extractStoragePath(url) {
+  if (!url) return null;
+  var parts = url.split("/sample-images/");
+  if (parts.length < 2) return null;
+  return parts[1].split("?")[0];
+}
+
+function isSignedUrlExpiringSoon(url) {
+  if (!url) return false;
+  if (!url.includes("/object/sign/")) return false;
+  var match = url.match(/[?&]expiry=(\d+)/);
+  if (!match) return true;
+  var expiry = parseInt(match[1]) * 1000;
+  var oneDay = 24 * 60 * 60 * 1000;
+  return Date.now() + oneDay > expiry;
+}
+
+async function refreshSignedUrl(url) {
+  if (!url || !supabaseClient) return url;
+  var path = extractStoragePath(url);
+  if (!path) return url;
+  try {
+    var result = await supabaseClient.storage
+      .from("sample-images")
+      .createSignedUrl(path, 604800);
+    return result.data ? result.data.signedUrl : url;
+  } catch (e) {
+    return url;
+  }
 }
 
 async function deleteImageFromStorage(imageUrl) {
   if (!supabaseClient || !imageUrl || !imageUrl.includes("sample-images"))
     return;
-  var parts = imageUrl.split("/sample-images/");
-  if (parts.length < 2) return;
-  var path = parts[1];
+  var path = extractStoragePath(imageUrl);
+  if (!path) return;
   supabaseClient.storage
     .from("sample-images")
     .remove([path])
@@ -385,7 +572,31 @@ class Store {
     }
     const code = generateDailyCode();
     Store.set(STORAGE_KEYS.dailyCode, { code, date: today() });
+    Store.syncDailyCodeToDB(code);
     return code;
+  }
+
+  static syncDailyCodeToDB(code) {
+    if (!supabaseClient) return;
+    const date = today();
+    supabaseClient
+      .from("daily_codes")
+      .upsert({ code, date }, { onConflict: "date" })
+      .then((res) => {
+        if (res.error) console.warn("syncDailyCode failed:", res.error);
+      });
+  }
+
+  static async fetchDailyCodeFromDB() {
+    if (!supabaseClient) return null;
+    const date = today();
+    const { data, error } = await supabaseClient
+      .from("daily_codes")
+      .select("code")
+      .eq("date", date)
+      .maybeSingle();
+    if (error || !data) return null;
+    return data.code;
   }
 
   static getUsers() {
@@ -468,7 +679,30 @@ class Store {
       .order("created_at", { ascending: false });
     if (error) throw error;
     if (data && data.length > 0) {
-      Store.set(STORAGE_KEYS.samples, data.map(fromSnakeCase));
+      var samples = data.map(fromSnakeCase);
+      var refreshes = [];
+      for (var i = 0; i < samples.length; i++) {
+        (function (s) {
+          if (isSignedUrlExpiringSoon(s.imageUrl)) {
+            refreshes.push(
+              refreshSignedUrl(s.imageUrl).then(function (u) {
+                s.imageUrl = u;
+              }),
+            );
+          }
+          if (isSignedUrlExpiringSoon(s.thumbnailUrl)) {
+            refreshes.push(
+              refreshSignedUrl(s.thumbnailUrl).then(function (u) {
+                s.thumbnailUrl = u;
+              }),
+            );
+          }
+        })(samples[i]);
+      }
+      if (refreshes.length > 0) {
+        await Promise.all(refreshes);
+      }
+      Store.set(STORAGE_KEYS.samples, samples);
     }
   }
 
@@ -630,19 +864,25 @@ class App {
     }
   }
 
-  showApp() {
+  async showApp() {
     this.currentView = "projects";
     document.getElementById("loginSection").classList.remove("active");
     document.getElementById("appSection").classList.add("active");
     this.updateHeader();
     if (this.user && this.user.isDemo) {
       this.seedDemoData();
+    } else if (!DEMO_MODE && supabaseClient && this.user?.id) {
+      try {
+        await Store.loadProjectsFromDB();
+        await Store.loadSamplesFromDB();
+      } catch (e) {
+        console.warn("DB load failed:", e);
+        this.showToast("数据加载失败，请检查网络后刷新", "error");
+      }
+      Store.loadFieldVisibilityFromDB();
     }
     this.renderProjects();
     this.showView("projects");
-    if (!DEMO_MODE && supabaseClient) {
-      Store.loadFieldVisibilityFromDB();
-    }
   }
 
   updateHeader() {
@@ -755,7 +995,8 @@ class App {
       document.getElementById("sampleModalTitle").textContent = "录入样板";
       document.getElementById("sampleForm").reset();
       document.getElementById("sampleId").value = "";
-      document.getElementById("sampleCode").value = "";
+      document.getElementById("sampleCodeSeq").value = "";
+      document.getElementById("sampleCodeSuffix").textContent = "";
       document.getElementById("imagePreview").classList.remove("has-image");
       document.getElementById("sampleImagePreview").src = "";
       document.getElementById("imagePlaceholder").style.display = "";
@@ -783,6 +1024,26 @@ class App {
         capsule
           .querySelector('[data-value="范围内"]')
           .classList.remove("active");
+      }
+      const seq = nextSeqForProject(this.currentProjectId);
+      const code = generateSampleCode(
+        document.getElementById("sampleName").value || "名称",
+        document.getElementById("sampleBrand").value || project?.brand || "",
+        seq,
+      );
+      setSampleCodeFields(code);
+    });
+
+    document.getElementById("sampleName").addEventListener("input", () => {
+      const seq = nextSeqForProject(this.currentProjectId);
+      const name = document.getElementById("sampleName").value.trim();
+      const brand =
+        document.getElementById("sampleBrand").value.trim() ||
+        Store.getProjects().find((p) => p.id === this.currentProjectId)
+          ?.brand ||
+        "";
+      if (name) {
+        setSampleCodeFields(generateSampleCode(name, brand, seq));
       }
     });
 
@@ -944,10 +1205,8 @@ class App {
         isDemo: false,
       };
       Store.saveSession(this.user);
-      await Store.loadProjectsFromDB();
-      await Store.loadSamplesFromDB();
       this.showToast("登录成功", "success");
-      this.showApp();
+      await this.showApp();
     } catch (e) {
       this.showToast(e.message || "数据库连接失败，请检查网络后重试", "error");
     }
@@ -967,7 +1226,7 @@ class App {
   }
 
   seedDemoData() {
-    const SEED_VERSION = "v2";
+    const SEED_VERSION = "v3";
     const seeded = Store.get("easycod_seeded");
     if (seeded === SEED_VERSION) return;
     Store.set(STORAGE_KEYS.projects, []);
@@ -1008,7 +1267,7 @@ class App {
         name: "米黄洞石",
         model: "MHY-001",
         brand: "水墨江南",
-        code: generateSampleCode("米黄洞石"),
+        code: generateSampleCode("米黄洞石", "水墨江南", 1),
         specs: "600x600x20mm",
         color: "米黄色",
         material: "天然大理石",
@@ -1024,7 +1283,7 @@ class App {
         name: "意大利灰",
         model: "YDLH-002",
         brand: "水墨江南",
-        code: generateSampleCode("意大利灰"),
+        code: generateSampleCode("意大利灰", "水墨江南", 2),
         specs: "800x800x20mm",
         color: "深灰色",
         material: "通体大理石",
@@ -1040,7 +1299,7 @@ class App {
         name: "黑金花",
         model: "HJH-003",
         brand: "水墨江南",
-        code: generateSampleCode("黑金花"),
+        code: generateSampleCode("黑金花", "水墨江南", 3),
         specs: "600x900x20mm",
         color: "黑色金色",
         material: "通体大理石",
@@ -1056,7 +1315,7 @@ class App {
         name: "白麻花岗岩",
         model: "BMG-001",
         brand: "水墨江南",
-        code: generateSampleCode("白麻花岗岩"),
+        code: generateSampleCode("白麻花岗岩", "水墨江南", 4),
         specs: "600x600x30mm",
         color: "白色麻点",
         material: "通体瓷砖",
@@ -1072,7 +1331,7 @@ class App {
         name: "芝麻灰",
         model: "ZMH-002",
         brand: "水墨江南",
-        code: generateSampleCode("芝麻灰"),
+        code: generateSampleCode("芝麻灰", "水墨江南", 5),
         specs: "600x600x30mm",
         color: "灰白色",
         material: "通体瓷砖",
@@ -1088,7 +1347,7 @@ class App {
         name: "俄罗斯金",
         model: "ELSJ-003",
         brand: "水墨江南",
-        code: generateSampleCode("俄罗斯金"),
+        code: generateSampleCode("俄罗斯金", "水墨江南", 6),
         specs: "800x800x20mm",
         color: "金色",
         material: "通体大理石",
@@ -1104,7 +1363,7 @@ class App {
         name: "银白龙",
         model: "YBL-001",
         brand: "水墨江南",
-        code: generateSampleCode("银白龙"),
+        code: generateSampleCode("银白龙", "水墨江南", 7),
         specs: "600x900x20mm",
         color: "银白色",
         material: "通体大理石",
@@ -1118,7 +1377,7 @@ class App {
         name: "蓝金沙",
         model: "LJS-002",
         brand: "水墨江南",
-        code: generateSampleCode("蓝金沙"),
+        code: generateSampleCode("蓝金沙", "水墨江南", 8),
         specs: "800x800x20mm",
         color: "蓝色金色",
         material: "通体大理石",
@@ -1876,6 +2135,7 @@ class App {
           name,
           model,
           brand,
+          code: getSampleCode() || samples[index].code,
           procurementRange,
           imageUrl: imageUrl || samples[index].imageUrl,
           thumbnailUrl: thumbnailUrl || samples[index].thumbnailUrl,
@@ -1892,7 +2152,13 @@ class App {
       const project = Store.getProjects().find(
         (p) => p.id === this.currentProjectId,
       );
-      const code = generateSampleCode(name);
+      const code =
+        getSampleCode() ||
+        generateSampleCode(
+          name,
+          brand,
+          nextSeqForProject(this.currentProjectId),
+        );
       const sample = {
         id: generateId(),
         projectId: this.currentProjectId,
@@ -1949,7 +2215,7 @@ class App {
         btn.disabled = true;
       });
     }
-    document.getElementById("sampleCode").value = sample.code || "";
+    setSampleCodeFields(sample.code || "");
 
     if (sample.imageUrl) {
       document.getElementById("sampleImagePreview").src = sample.imageUrl;
@@ -2278,6 +2544,7 @@ class App {
   renderInfoView() {
     const container = document.getElementById("infoContainer");
     const code = Store.getDailyCode();
+    Store.syncDailyCodeToDB(code);
     const now = new Date();
     const dateStr = `${now.getFullYear()}年${now.getMonth() + 1}月${now.getDate()}日`;
 

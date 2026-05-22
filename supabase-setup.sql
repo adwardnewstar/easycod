@@ -91,9 +91,9 @@ ALTER TABLE samples ENABLE ROW LEVEL SECURITY;
 ALTER TABLE daily_codes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE field_visibility ENABLE ROW LEVEL SECURITY;
 
--- 6. 创建存储桶用于图片存储
-INSERT INTO storage.buckets (id, name, public) VALUES ('sample-images', 'sample-images', true)
-ON CONFLICT (id) DO NOTHING;
+-- 6. 创建存储桶用于图片存储（私有：只能通过签名URL访问）
+INSERT INTO storage.buckets (id, name, public) VALUES ('sample-images', 'sample-images', false)
+ON CONFLICT (id) DO UPDATE SET public = false;
 
 DROP POLICY IF EXISTS "Public can view sample images" ON storage.objects;
 CREATE POLICY "Public can view sample images"
@@ -171,6 +171,11 @@ DROP POLICY IF EXISTS "Only authenticated users can insert codes" ON daily_codes
 CREATE POLICY "Only authenticated users can insert codes"
   ON daily_codes FOR INSERT
   WITH CHECK (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Only authenticated users can update codes" ON daily_codes;
+CREATE POLICY "Only authenticated users can update codes"
+  ON daily_codes FOR UPDATE
+  USING (auth.role() = 'authenticated');
 
 -- 8.5 字段可见性策略: 用户只能管理自己的可见性设置
 DROP POLICY IF EXISTS "Users can view own field visibility" ON field_visibility;

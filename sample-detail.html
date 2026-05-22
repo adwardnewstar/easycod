@@ -55,10 +55,17 @@
         return getStore(STORAGE_KEYS.samples) || [];
       }
 
+      var _dailyCode = null;
+      var _dailyCodePromise = null;
+
       function getDailyCode() {
+        if (_dailyCode) return _dailyCode;
         var data = getStore(STORAGE_KEYS.dailyCode);
         var today = new Date().toISOString().split("T")[0];
-        if (data && data.date === today) return data.code;
+        if (data && data.date === today) {
+          _dailyCode = data.code;
+          return _dailyCode;
+        }
         var chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
         var code = "";
         for (var i = 0; i < 6; i++)
@@ -67,7 +74,41 @@
           STORAGE_KEYS.dailyCode,
           JSON.stringify({ code: code, date: today }),
         );
+        _dailyCode = code;
         return code;
+      }
+
+      function fetchDailyCodeFromDB(sb) {
+        if (_dailyCodePromise) return _dailyCodePromise;
+        if (!sb) {
+          _dailyCodePromise = Promise.resolve(null);
+          return _dailyCodePromise;
+        }
+        var today = new Date().toISOString().split("T")[0];
+        _dailyCodePromise = sb
+          .from("daily_codes")
+          .select("code")
+          .eq("date", today)
+          .maybeSingle()
+          .then(function (res) {
+            if (!res.error && res.data && res.data.code) {
+              _dailyCode = res.data.code;
+              localStorage.setItem(
+                STORAGE_KEYS.dailyCode,
+                JSON.stringify({ code: _dailyCode, date: today }),
+              );
+              return _dailyCode;
+            }
+            var localCode = getDailyCode();
+            sb.from("daily_codes")
+              .upsert({ code: localCode, date: today }, { onConflict: "date" })
+              .then();
+            return localCode;
+          })
+          .catch(function () {
+            return null;
+          });
+        return _dailyCodePromise;
       }
 
       function getFieldVisibility() {
@@ -83,6 +124,40 @@
           if (!saved[k]) saved[k] = defaults[k];
         }
         return saved;
+      }
+
+      function fromSnakeCase(obj) {
+        var r = {};
+        for (var k in obj) {
+          if (Object.prototype.hasOwnProperty.call(obj, k)) {
+            var ck = k.replace(/_([a-z])/g, function (m, c) {
+              return c.toUpperCase();
+            });
+            r[ck] = obj[k];
+          }
+        }
+        return r;
+      }
+
+      function extractStoragePath(url) {
+        if (!url) return null;
+        var parts = url.split("/sample-images/");
+        if (parts.length < 2) return null;
+        return parts[1].split("?")[0];
+      }
+
+      async function refreshSignedUrl(sb, url) {
+        if (!url || !sb) return url;
+        var path = extractStoragePath(url);
+        if (!path) return url;
+        try {
+          var result = await sb.storage
+            .from("sample-images")
+            .createSignedUrl(path, 604800);
+          return result.data ? result.data.signedUrl : url;
+        } catch (e) {
+          return url;
+        }
       }
 
       function formatDate(d) {
@@ -103,12 +178,26 @@
         return d.innerHTML;
       }
 
-      document.addEventListener("DOMContentLoaded", function () {
+      document.addEventListener("DOMContentLoaded", async function () {
         var params = new URLSearchParams(window.location.search);
         var sid = params.get("id");
         var loadingEl = document.getElementById("loadingState");
         var errorEl = document.getElementById("errorState");
         var detailEl = document.getElementById("detailContent");
+
+        var supabaseClient = null;
+        if (
+          typeof supabase !== "undefined" &&
+          window.SUPABASE_URL &&
+          window.SUPABASE_ANON_KEY
+        ) {
+          supabaseClient = supabase.createClient(
+            window.SUPABASE_URL,
+            window.SUPABASE_ANON_KEY,
+          );
+        }
+
+        await fetchDailyCodeFromDB(supabaseClient);
 
         if (!sid) {
           loadingEl.style.display = "none";
@@ -303,21 +392,30 @@
         }
 
         if (sample) {
+          if (
+            supabaseClient &&
+            sample.imageUrl &&
+            sample.imageUrl.includes("/object/sign/")
+          ) {
+            sample.imageUrl = await refreshSignedUrl(
+              supabaseClient,
+              sample.imageUrl,
+            );
+            if (sample.thumbnailUrl) {
+              sample.thumbnailUrl = await refreshSignedUrl(
+                supabaseClient,
+                sample.thumbnailUrl,
+              );
+            }
+          }
           renderSample(sample, projects);
-        } else if (
-          typeof supabase !== "undefined" &&
-          "SUPABASE_URL" in window &&
-          "SUPABASE_ANON_KEY" in window
-        ) {
-          var sb = supabase.createClient(
-            window.SUPABASE_URL,
-            window.SUPABASE_ANON_KEY,
-          );
-          sb.from("samples")
+        } else if (supabaseClient) {
+          supabaseClient
+            .from("samples")
             .select("*")
             .eq("id", sid)
             .maybeSingle()
-            .then(function (res) {
+            .then(async function (res) {
               if (res.error || !res.data) {
                 loadingEl.style.display = "none";
                 errorEl.style.display = "block";
@@ -325,15 +423,25 @@
                   "未找到该样板信息";
                 return;
               }
-              var s = res.data;
-              sb.from("projects")
+              var s = fromSnakeCase(res.data);
+              if (s.imageUrl) {
+                s.imageUrl = await refreshSignedUrl(supabaseClient, s.imageUrl);
+              }
+              if (s.thumbnailUrl) {
+                s.thumbnailUrl = await refreshSignedUrl(
+                  supabaseClient,
+                  s.thumbnailUrl,
+                );
+              }
+              supabaseClient
+                .from("projects")
                 .select("*")
-                .eq("id", s.project_id)
+                .eq("id", s.projectId)
                 .maybeSingle()
                 .then(function (pres) {
                   var ps = [];
                   if (!pres.error && pres.data) {
-                    ps = [pres.data];
+                    ps = [fromSnakeCase(pres.data)];
                   }
                   renderSample(s, ps);
                 });
