@@ -328,7 +328,7 @@ class Store {
       .eq("user_id", window.app.user.id)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    if (data) {
+    if (data && data.length > 0) {
       Store.set(STORAGE_KEYS.projects, data);
     }
   }
@@ -341,7 +341,7 @@ class Store {
       .eq("user_id", window.app.user.id)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    if (data) {
+    if (data && data.length > 0) {
       Store.set(STORAGE_KEYS.samples, data);
     }
   }
@@ -1913,7 +1913,9 @@ class App {
     `;
 
     const qrCanvas = document.getElementById("detailQrCode");
-    QRCode.toCanvas(qrCanvas, qrUrl);
+    if (typeof QRCode !== "undefined") {
+      QRCode.toCanvas(qrCanvas, qrUrl).catch(function () {});
+    }
 
     container.querySelectorAll(".cell-image").forEach((img) => {
       img.addEventListener("click", (e) => {
@@ -1986,7 +1988,11 @@ class App {
     setTimeout(() => {
       const canvas = document.getElementById("modalQrCode");
       if (canvas) {
-        QRCode.toCanvas(canvas, qrUrl);
+        if (typeof QRCode !== "undefined") {
+          try {
+            QRCode.toCanvas(canvas, qrUrl);
+          } catch (_) {}
+        }
       }
       const label = modal.querySelector(".print-label");
       if (label) {
@@ -2105,7 +2111,11 @@ class App {
       const canvas = document.getElementById(`qr-${sample.id}`);
       if (canvas) {
         const qrUrl = `${window.location.origin}/sample-detail.html?id=${sample.id}`;
-        QRCode.toCanvas(canvas, qrUrl);
+        if (typeof QRCode !== "undefined") {
+          try {
+            QRCode.toCanvas(canvas, qrUrl);
+          } catch (_) {}
+        }
       }
     });
 
