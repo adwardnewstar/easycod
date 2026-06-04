@@ -665,9 +665,10 @@ class Store {
       .eq("user_id", window.app.user.id)
       .order("created_at", { ascending: false });
     if (error) throw error;
-    if (data && data.length > 0) {
-      Store.set(STORAGE_KEYS.projects, data.map(fromSnakeCase));
-    }
+    Store.set(
+      STORAGE_KEYS.projects,
+      data && data.length > 0 ? data.map(fromSnakeCase) : [],
+    );
   }
 
   static async loadSamplesFromDB() {
@@ -703,6 +704,8 @@ class Store {
         await Promise.all(refreshes);
       }
       Store.set(STORAGE_KEYS.samples, samples);
+    } else {
+      Store.set(STORAGE_KEYS.samples, []);
     }
   }
 
@@ -822,7 +825,9 @@ class App {
 
   init() {
     try {
-      this.checkSession();
+      this.checkSession().catch(function (e) {
+        return console.error("checkSession error:", e);
+      });
     } catch (e) {
       console.error("checkSession error:", e);
     }
@@ -833,22 +838,22 @@ class App {
     }
   }
 
-  checkSession() {
+  async checkSession() {
     const session = Store.getSession();
     if (session && supabaseClient) {
       this.user = session;
-      this.showApp();
+      await this.showApp();
     } else if (session) {
-      var self = this;
-      setTimeout(function () {
-        if (supabaseClient) {
-          self.user = session;
-          self.showApp();
-        } else {
-          Store.clearSession();
-          self.showLogin();
-        }
-      }, 3000);
+      await new Promise(function (resolve) {
+        return setTimeout(resolve, 3000);
+      });
+      if (supabaseClient) {
+        this.user = session;
+        await this.showApp();
+      } else {
+        Store.clearSession();
+        this.showLogin();
+      }
     } else {
       this.showLogin();
     }
@@ -1032,6 +1037,11 @@ class App {
         seq,
       );
       setSampleCodeFields(code);
+      document.getElementById("sampleEditFields").style.display = "none";
+      document.getElementById("sampleSpecs").value = "";
+      document.getElementById("sampleColor").value = "";
+      document.getElementById("sampleMaterial").value = "";
+      document.getElementById("sampleDescription").value = "";
     });
 
     document.getElementById("sampleName").addEventListener("input", () => {
@@ -1212,7 +1222,7 @@ class App {
     }
   }
 
-  handleDemoLogin() {
+  async handleDemoLogin() {
     this.user = {
       id: "demo-user",
       email: "demo@easycod.dev",
@@ -1222,7 +1232,7 @@ class App {
     Store.saveSession(this.user);
     this.seedDemoData();
     this.showToast("已进入演示模式", "success");
-    this.showApp();
+    await this.showApp();
   }
 
   seedDemoData() {
@@ -1548,12 +1558,14 @@ class App {
           Store.saveProjects(projects);
           let samples = allS.filter((s) => s.projectId !== id);
           Store.saveSamples(samples);
-          Store.deleteProjectFromDB(id).catch((e) =>
-            console.warn("DB delete project failed:", e),
-          );
-          Store.deleteSamplesByProjectFromDB(id).catch((e) =>
-            console.warn("DB delete samples failed:", e),
-          );
+          Store.deleteProjectFromDB(id).catch((e) => {
+            console.warn("DB delete project failed:", e);
+            this.showToast("删除数据同步到数据库失败，请检查网络", "error");
+          });
+          Store.deleteSamplesByProjectFromDB(id).catch((e) => {
+            console.warn("DB delete samples failed:", e);
+            this.showToast("删除数据同步到数据库失败，请检查网络", "error");
+          });
           this.renderProjects();
           this.showToast("类别已删除", "success");
         }
@@ -1607,15 +1619,19 @@ class App {
             s.projectId === id ? { ...s, brand } : s,
           );
           Store.saveSamples(samples);
-          samples.forEach((s) => {
-            Store.upsertSampleToDB(s).catch((e) =>
-              console.warn("Sample brand sync failed:", e),
-            );
-          });
+          try {
+            await Promise.all(samples.map((s) => Store.upsertSampleToDB(s)));
+          } catch (e) {
+            console.warn("Sample brand sync failed:", e);
+            this.showToast("品牌同步到数据库失败，请检查网络", "error");
+          }
         }
-        Store.upsertProjectToDB(projects[index]).catch((e) =>
-          console.warn("DB sync failed:", e),
-        );
+        try {
+          await Store.upsertProjectToDB(projects[index]);
+        } catch (e) {
+          console.warn("DB sync failed:", e);
+          this.showToast("数据保存到数据库失败，请检查网络", "error");
+        }
         this.showToast("类别已更新", "success");
       }
     } else {
@@ -1634,9 +1650,12 @@ class App {
       };
       projects.push(project);
       Store.saveProjects(projects);
-      Store.upsertProjectToDB(project).catch((e) =>
-        console.warn("DB sync failed:", e),
-      );
+      try {
+        await Store.upsertProjectToDB(project);
+      } catch (e) {
+        console.warn("DB sync failed:", e);
+        this.showToast("数据保存到数据库失败，请检查网络", "error");
+      }
       this.showToast("类别已创建", "success");
     }
 
@@ -1744,9 +1763,10 @@ class App {
           let allSamples = Store.getSamples();
           allSamples = allSamples.filter((s) => s.id !== id);
           Store.saveSamples(allSamples);
-          Store.deleteSampleFromDB(id).catch((e) =>
-            console.warn("DB delete sample failed:", e),
-          );
+          Store.deleteSampleFromDB(id).catch((e) => {
+            console.warn("DB delete sample failed:", e);
+            this.showToast("删除数据同步到数据库失败，请检查网络", "error");
+          });
           this.renderSamples(this.currentProjectId);
           this.showToast("样板已删除", "success");
         }
@@ -2067,6 +2087,12 @@ class App {
     const name = document.getElementById("sampleName").value.trim();
     const model = document.getElementById("sampleModel").value.trim();
     const brand = document.getElementById("sampleBrand").value.trim();
+    const specs = document.getElementById("sampleSpecs").value.trim();
+    const color = document.getElementById("sampleColor").value.trim();
+    const material = document.getElementById("sampleMaterial").value.trim();
+    const description = document
+      .getElementById("sampleDescription")
+      .value.trim();
     const activeBtn = document.querySelector(
       "#procurementRangeCapsule .vis-pill-btn.active",
     );
@@ -2135,6 +2161,10 @@ class App {
           name,
           model,
           brand,
+          specs,
+          color,
+          material,
+          description,
           code: getSampleCode() || samples[index].code,
           procurementRange,
           imageUrl: imageUrl || samples[index].imageUrl,
@@ -2143,9 +2173,12 @@ class App {
           updatedAt: new Date().toISOString(),
         };
         Store.saveSamples(samples);
-        Store.upsertSampleToDB(samples[index]).catch((e) =>
-          console.warn("DB sync failed:", e),
-        );
+        try {
+          await Store.upsertSampleToDB(samples[index]);
+        } catch (e) {
+          console.warn("DB sync failed:", e);
+          this.showToast("数据保存到数据库失败，请检查网络", "error");
+        }
         this.showToast("样板已更新", "success");
       }
     } else {
@@ -2180,9 +2213,12 @@ class App {
       };
       samples.push(sample);
       Store.saveSamples(samples);
-      Store.upsertSampleToDB(sample).catch((e) =>
-        console.warn("DB sync failed:", e),
-      );
+      try {
+        await Store.upsertSampleToDB(sample);
+      } catch (e) {
+        console.warn("DB sync failed:", e);
+        this.showToast("数据保存到数据库失败，请检查网络", "error");
+      }
       this.showToast("样板已创建", "success");
     }
 
@@ -2197,6 +2233,12 @@ class App {
     document.getElementById("sampleName").value = sample.name;
     document.getElementById("sampleModel").value = sample.model || "";
     document.getElementById("sampleBrand").value = sample.brand || "";
+    document.getElementById("sampleSpecs").value = sample.specs || "";
+    document.getElementById("sampleColor").value = sample.color || "";
+    document.getElementById("sampleMaterial").value = sample.material || "";
+    document.getElementById("sampleDescription").value =
+      sample.description || "";
+    document.getElementById("sampleEditFields").style.display = "block";
     const range =
       sample.procurementRange || (sample.procurement ? "范围内" : "范围外");
     const capsule = document.getElementById("procurementRangeCapsule");
@@ -2303,11 +2345,14 @@ class App {
       ),
     );
 
-    if (sample.description) {
-      cells.push(
-        `<div class="detail-cell" style="grid-column:1/-1;"><span class="cell-label">描述</span><span class="cell-value" style="color:var(--text-secondary);line-height:1.5;">${sample.description}</span></div>`,
-      );
-    }
+    cells.push(
+      cell(
+        "描述",
+        sample.description || "-",
+        2,
+        "color:var(--text-secondary);line-height:1.5;",
+      ),
+    );
 
     if (sample.imageUrl) {
       cells.push(

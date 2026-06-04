@@ -463,7 +463,6 @@ a:hover {
   background: var(--card-bg);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
-  overflow: hidden;
   transition: var(--transition);
   cursor: pointer;
 }
@@ -502,17 +501,13 @@ a:hover {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  overflow: hidden;
+  white-space: nowrap;
 }
 
 .sample-title-row h3 {
   font-size: 0.875rem;
   font-weight: 600;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex-shrink: 1;
-  min-width: 0;
+  flex-shrink: 0;
 }
 
 .sample-title-row .sample-model {
@@ -554,6 +549,8 @@ a:hover {
 .sample-image-wrap {
   position: relative;
   line-height: 0;
+  overflow: hidden;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .btn-label-print {
