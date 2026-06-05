@@ -796,13 +796,21 @@ a:hover {
   padding: 16px 0;
 }
 
+.print-label-wrap {
+  display: flex;
+  background: transparent;
+  border-radius: var(--radius-lg);
+  gap: 6px;
+  page-break-inside: avoid;
+}
+
 .print-label {
   background: #1d1d1f;
-  border-radius: var(--radius-lg);
+  border-radius: 8px;
   padding: 16px;
-  page-break-inside: avoid;
+  flex: 1;
+  min-width: 0;
   color: #fff;
-  position: relative;
 }
 
 .print-label-category {
@@ -830,8 +838,6 @@ a:hover {
 }
 
 .proc-badge {
-  font-size: 0.75rem;
-  line-height: 1;
   width: 16px;
   height: 16px;
   display: flex;
@@ -839,19 +845,45 @@ a:hover {
   justify-content: center;
   flex-shrink: 0;
   margin-left: auto;
+  position: relative;
 }
 
-.proc-badge.proc-in {
-  color: #2ecc40;
+.proc-badge::before {
+  content: "";
+  display: block;
 }
 
-.proc-badge.proc-out {
-  color: #ffdc00;
+/* 圆圈 - 集采范围内 */
+.proc-badge.proc-in::before {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2ecc40;
+}
+
+/* 正方形 - 集采范围外 */
+.proc-badge.proc-out::before {
+  width: 10px;
+  height: 10px;
+  background: #ffdc00;
   border-radius: 2px;
 }
 
-.proc-badge.proc-non {
-  color: #ff4136;
+/* × - 非集采 */
+.proc-badge.proc-non::before,
+.proc-badge.proc-non::after {
+  content: "";
+  position: absolute;
+  width: 12px;
+  height: 2px;
+  background: #ff4136;
+  border-radius: 1px;
+}
+.proc-badge.proc-non::before {
+  transform: rotate(45deg);
+}
+.proc-badge.proc-non::after {
+  transform: rotate(-45deg);
 }
 
 .print-label-row {
@@ -873,17 +905,53 @@ a:hover {
 
 .print-label-qrcode {
   display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin: 10px -16px 0;
-  padding: 10px 16px 0;
-  border-top: 1px solid #fff;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 10px -16px -16px;
+  padding: 17px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.25);
 }
 
 .print-label-qrcode canvas {
   display: block;
   background: #fff;
   border-radius: 3px;
+}
+
+/* 竖向黑色胶囊 - 标签右侧 */
+.print-label-capsule {
+  width: 1.5cm;
+  background: #1d1d1f;
+  border-radius: 999px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+}
+
+.capsule-circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin-top: 18.5px;
+  margin-bottom: 12px;
+}
+
+.capsule-code {
+  flex: 1;
+  writing-mode: vertical-lr;
+  text-orientation: sideways;
+  font-size: 20px;
+  color: #fff;
+  line-height: 1;
+  width: 20px;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding-bottom: 80px;
 }
 
 .print-toolbar {
@@ -1832,9 +1900,13 @@ a:hover {
 
   .print-labels-container {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
     padding: 0;
+  }
+
+  .print-label-wrap {
+    break-inside: avoid;
   }
 
   .print-label {
@@ -1842,9 +1914,17 @@ a:hover {
     color: #fff !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    break-inside: avoid;
     padding: 16px;
-    border-radius: 3px;
+    width: 7cm;
+    flex-shrink: 0;
+    border-radius: 8px;
+  }
+
+  .print-label-capsule {
+    background: #1d1d1f !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    border-radius: 999px;
   }
 
   .print-label-header {

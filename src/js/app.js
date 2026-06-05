@@ -357,6 +357,16 @@ async function compressImagesForSample(file) {
   return { imageUrl, thumbnailUrl };
 }
 
+// 根据编码哈希生成 100 色之一（HSL 均匀分布，饱和度亮度固定）
+function hashToColor(code) {
+  let hash = 0;
+  for (let i = 0; i < code.length; i++) {
+    hash = ((hash << 5) - hash + code.charCodeAt(i)) | 0;
+  }
+  const index = ((Math.abs(hash) % 100) / 100) * 360;
+  return `hsl(${index}, 70%, 55%)`;
+}
+
 function getProcurementIndicator(sample, project) {
   const isProc = project && project.procurement;
   let state, symbol, cls;
@@ -1182,6 +1192,18 @@ class App {
       this.renderInfoView();
       this.showView("info");
     });
+
+    // 标签页切换回前台时自动静默同步
+    document.addEventListener("visibilitychange", () => {
+      if (
+        document.visibilityState === "visible" &&
+        this.user &&
+        !this.user.isDemo &&
+        supabaseClient
+      ) {
+        this.silentSync().catch(() => {});
+      }
+    });
   }
 
   async handleLogin() {
@@ -1427,6 +1449,14 @@ class App {
 
   closeModal(id) {
     document.getElementById(id).classList.remove("active");
+  }
+
+  // 静默同步（不弹toast，仅后台拉取数据并刷新界面）
+  async silentSync() {
+    await Store.loadProjectsFromDB();
+    await Store.loadSamplesFromDB();
+    Store.loadFieldVisibilityFromDB();
+    this.renderProjects();
   }
 
   showToast(message, type = "info") {
@@ -2398,9 +2428,16 @@ class App {
     const qrUrl = qrPageUrl(sample.id);
 
     const modal = document.getElementById("labelPreviewModal");
+    const codeSeq = (sample.code || "").split("-")[0] || "";
+    const capsuleText = [codeSeq, sample.brand, sample.name]
+      .filter(Boolean)
+      .join("-");
+    const badgeInfo = getProcurementIndicator(sample, project);
+    const color = hashToColor(sample.code || "");
     modal.innerHTML = `
+      <div class="print-label-wrap">
       <div class="print-label">
-        <div class="print-label-category">${project ? project.name : ""}<span class="proc-badge ${getProcurementIndicator(sample, project).cls}">${getProcurementIndicator(sample, project).symbol}</span></div>
+        <div class="print-label-category">${project ? project.name : ""}<span class="proc-badge ${badgeInfo.cls}"></span></div>
         <div class="print-label-header">${sample.name}</div>
         <div class="print-label-row">
           <span class="label">型号：</span>
@@ -2441,14 +2478,19 @@ class App {
         <div class="print-label-qrcode">
             <canvas id="modalQrCode" width="80" height="80"></canvas>
           </div>
-      `;
+      </div>
+      <div class="print-label-capsule">
+        <div class="capsule-circle" style="background:${color}"></div>
+        <div class="capsule-code">${capsuleText}</div>
+      </div>
+      </div>`;
 
     setTimeout(() => {
       const canvas = document.getElementById("modalQrCode");
       if (canvas) {
         drawQRCode(canvas, qrUrl);
       }
-      const label = modal.querySelector(".print-label");
+      const label = modal.querySelector(".print-label-wrap");
       if (label) {
         const setRatio = () => {
           const h = label.offsetHeight;
@@ -2507,10 +2549,17 @@ class App {
       .map((sample) => {
         const project = projects.find((p) => p.id === sample.projectId);
         const canvasId = `qr-${sample.id}`;
+        const codeSeq = (sample.code || "").split("-")[0] || "";
+        const capsuleText = [codeSeq, sample.brand, sample.name]
+          .filter(Boolean)
+          .join("-");
+        const badgeInfo = getProcurementIndicator(sample, project);
+        const color = hashToColor(sample.code || "");
 
         return `
-        <div class="print-label" data-id="${sample.id}">
-          <div class="print-label-category">${project ? project.name : ""}<span class="proc-badge ${getProcurementIndicator(sample, project).cls}">${getProcurementIndicator(sample, project).symbol}</span></div>
+        <div class="print-label-wrap" data-id="${sample.id}">
+        <div class="print-label">
+          <div class="print-label-category">${project ? project.name : ""}<span class="proc-badge ${badgeInfo.cls}"></span></div>
           <div class="print-label-header">${sample.name}</div>
           <div class="print-label-row">
             <span class="label">型号：</span>
@@ -2552,6 +2601,11 @@ class App {
             <canvas id="${canvasId}" width="80" height="80"></canvas>
           </div>
         </div>
+        <div class="print-label-capsule">
+          <div class="capsule-circle" style="background:${color}"></div>
+          <div class="capsule-code">${capsuleText}</div>
+        </div>
+        </div>
       `;
       })
       .join("");
@@ -2567,7 +2621,7 @@ class App {
       container.removeEventListener("click", container._dismissHandler);
     }
     const dismissLabels = (e) => {
-      if (e.target.closest(".print-label")) return;
+      if (e.target.closest(".print-label-wrap")) return;
       if (this.currentProjectId) {
         this.renderSamples(this.currentProjectId);
         this.showView("samples");
