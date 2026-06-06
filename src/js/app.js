@@ -40,6 +40,9 @@ const STORAGE_KEYS = {
   dailyCode: "easycod_daily_code",
   users: "easycod_users",
   fieldVisibility: "easycod_field_visibility",
+  orders: "easycod_orders",
+  applyRecords: "easycod_apply_records",
+  clockRecords: "easycod_clock_records",
 };
 
 const DEFAULT_FIELD_VISIBILITY = {
@@ -517,6 +520,16 @@ function fromSnakeCase(obj) {
   return r;
 }
 
+function esc(str) {
+  if (str == null) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 var BASE_PATH = (function () {
   var p = window.location.pathname;
   var i = p.lastIndexOf("/");
@@ -665,6 +678,66 @@ class Store {
       }
       Store.set(STORAGE_KEYS.fieldVisibility, merged);
     }
+  }
+
+  static getOrders() {
+    return Store.get(STORAGE_KEYS.orders) || [];
+  }
+  static saveOrders(orders) {
+    Store.set(STORAGE_KEYS.orders, orders);
+  }
+  static async loadOrdersFromDB() {
+    if (!supabaseClient || !window.app?.user?.id) return;
+    const { data, error } = await supabaseClient
+      .from("orders")
+      .select("*")
+      .eq("user_id", window.app.user.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    Store.set(
+      STORAGE_KEYS.orders,
+      data && data.length > 0 ? data.map(fromSnakeCase) : [],
+    );
+  }
+
+  static getApplyRecords() {
+    return Store.get(STORAGE_KEYS.applyRecords) || [];
+  }
+  static saveApplyRecords(records) {
+    Store.set(STORAGE_KEYS.applyRecords, records);
+  }
+  static async loadApplyFromDB() {
+    if (!supabaseClient || !window.app?.user?.id) return;
+    const { data, error } = await supabaseClient
+      .from("apply_records")
+      .select("*")
+      .eq("user_id", window.app.user.id)
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    Store.set(
+      STORAGE_KEYS.applyRecords,
+      data && data.length > 0 ? data.map(fromSnakeCase) : [],
+    );
+  }
+
+  static getClockRecords() {
+    return Store.get(STORAGE_KEYS.clockRecords) || [];
+  }
+  static saveClockRecords(records) {
+    Store.set(STORAGE_KEYS.clockRecords, records);
+  }
+  static async loadClockFromDB() {
+    if (!supabaseClient || !window.app?.user?.id) return;
+    const { data, error } = await supabaseClient
+      .from("clock_records")
+      .select("*")
+      .eq("user_id", window.app.user.id)
+      .order("clock_time", { ascending: false });
+    if (error) throw error;
+    Store.set(
+      STORAGE_KEYS.clockRecords,
+      data && data.length > 0 ? data.map(fromSnakeCase) : [],
+    );
   }
 
   static async loadProjectsFromDB() {
@@ -830,6 +903,7 @@ class App {
     this.currentView = "login";
     this.currentProjectId = null;
     this.selectedSamples = new Set();
+    this._projectView = "cards";
     this.init();
   }
 
@@ -880,7 +954,7 @@ class App {
   }
 
   async showApp() {
-    this.currentView = "projects";
+    this.currentView = "dashboard";
     document.getElementById("loginSection").classList.remove("active");
     document.getElementById("appSection").classList.add("active");
     this.updateHeader();
@@ -888,16 +962,27 @@ class App {
       this.seedDemoData();
     } else if (!DEMO_MODE && supabaseClient && this.user?.id) {
       try {
-        await Store.loadProjectsFromDB();
-        await Store.loadSamplesFromDB();
+        // 1. 优先加载品类+样板（小数据量，快速准备数据）
+        await Promise.all([
+          Store.loadProjectsFromDB(),
+          Store.loadSamplesFromDB(),
+        ]);
+        // 2. 后台静默加载其他表
+        Promise.all([
+          Store.loadOrdersFromDB(),
+          Store.loadApplyFromDB(),
+          Store.loadClockFromDB(),
+        ]).catch(function (e2) {
+          console.warn("silent load failed:", e2);
+        });
       } catch (e) {
         console.warn("DB load failed:", e);
         this.showToast("数据加载失败，请检查网络后刷新", "error");
       }
       Store.loadFieldVisibilityFromDB();
     }
-    this.renderProjects();
-    this.showView("projects");
+    this.renderDashboard();
+    this.showView("dashboard");
   }
 
   updateHeader() {
@@ -915,11 +1000,15 @@ class App {
       .querySelectorAll("#appSection .page-section")
       .forEach((el) => el.classList.remove("active"));
     const sectionMap = {
+      dashboard: "dashboardSection",
       projects: "projectsSection",
       samples: "samplesSection",
       labels: "labelsSection",
       sampleDetail: "sampleDetailSection",
       info: "infoSection",
+      orders: "ordersSection",
+      apply: "applySection",
+      clock: "clockSection",
     };
     const sectionId = sectionMap[view];
     if (sectionId) {
@@ -932,6 +1021,14 @@ class App {
       document.getElementById("navProjects").classList.add("active");
     } else if (view === "info") {
       document.getElementById("infoBtn").classList.add("active");
+    } else if (view === "orders") {
+      document.getElementById("navOrders").classList.add("active");
+    } else if (view === "apply") {
+      document.getElementById("navApply").classList.add("active");
+    } else if (view === "clock") {
+      document.getElementById("navClock").classList.add("active");
+    } else if (view === "dashboard") {
+      document.querySelector(".sidebar-title").classList.add("active");
     }
   }
 
@@ -960,11 +1057,79 @@ class App {
       this.handleLogout();
     });
 
-    document.getElementById("navProjects").addEventListener("click", (e) => {
-      e.preventDefault();
+    document.getElementById("navProjects").addEventListener("click", () => {
       this.renderProjects();
       this.showView("projects");
     });
+
+    // 类别视图切换
+    document
+      .querySelectorAll("#projectViewToggle .toggle-btn")
+      .forEach(function (btn) {
+        btn.addEventListener(
+          "click",
+          function () {
+            var view = this.dataset.view;
+            document
+              .querySelectorAll("#projectViewToggle .toggle-btn")
+              .forEach(function (b) {
+                b.classList.remove("active");
+              });
+            this.classList.add("active");
+            window.app._projectView = view;
+            window.app.renderProjects();
+          }.bind(btn),
+        );
+      });
+
+    // 类别页搜索框
+    document
+      .getElementById("projectSearchInput")
+      .addEventListener("input", function () {
+        window.app._projectSearch = this.value.trim();
+        window.app.renderProjects();
+      });
+
+    // 类别页筛选
+    [
+      "projectBrandFilter",
+      "projectCategoryFilter",
+      "projectProcFilter",
+      "projectRangeFilter",
+    ].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el)
+        el.addEventListener("change", function () {
+          window.app.renderProjects();
+        });
+    });
+    var qBtn = document.getElementById("projectQueryBtn");
+    if (qBtn)
+      qBtn.addEventListener("click", function () {
+        window.app.renderProjects();
+      });
+
+    document
+      .getElementById("projectRefreshBtn")
+      .addEventListener("click", async () => {
+        if (!supabaseClient) return;
+        try {
+          await Store.loadProjectsFromDB();
+          await Store.loadSamplesFromDB();
+          // 后台静默刷新其他表
+          Promise.all([
+            Store.loadOrdersFromDB(),
+            Store.loadApplyFromDB(),
+            Store.loadClockFromDB(),
+          ]).catch(function (e) {
+            console.warn("silent refresh failed:", e);
+          });
+          this.renderProjects();
+          this.showToast("数据已刷新", "success");
+        } catch (e) {
+          this.showToast("刷新失败: " + e.message, "error");
+        }
+      });
 
     document
       .getElementById("createProjectBtn")
@@ -1101,8 +1266,19 @@ class App {
       this.showView("projects");
     });
 
+    // 样板品牌模糊匹配筛选
+    var sb = document.getElementById("sampleBrandFilter");
+    if (sb)
+      sb.addEventListener("input", function () {
+        if (window.app.currentProjectId)
+          window.app.renderSamples(window.app.currentProjectId);
+      });
+
     document.getElementById("backFromDetail").addEventListener("click", () => {
-      if (this.currentProjectId) {
+      if (this._projectView === "table") {
+        this.renderProjects();
+        this.showView("projects");
+      } else if (this.currentProjectId) {
         this.renderSamples(this.currentProjectId);
         this.showView("samples");
       } else {
@@ -1192,6 +1368,218 @@ class App {
       this.renderInfoView();
       this.showView("info");
     });
+
+    document.getElementById("navOrders").addEventListener("click", () => {
+      this.renderOrders();
+      this.showView("orders");
+    });
+
+    document.getElementById("navApply").addEventListener("click", () => {
+      this.renderApply();
+      this.showView("apply");
+    });
+
+    document.getElementById("navClock").addEventListener("click", () => {
+      this.renderClock();
+      this.showView("clock");
+    });
+
+    // 刷新按钮
+    document
+      .getElementById("refreshOrdersBtn")
+      .addEventListener("click", async () => {
+        if (!supabaseClient) return;
+        try {
+          await Store.loadOrdersFromDB();
+          this.renderOrders();
+          this.showToast("订单数据已刷新", "success");
+        } catch (e) {
+          this.showToast("刷新失败: " + e.message, "error");
+        }
+      });
+    document
+      .getElementById("refreshApplyBtn")
+      .addEventListener("click", async () => {
+        if (!supabaseClient) return;
+        try {
+          await Store.loadApplyFromDB();
+          this.renderApply();
+          this.showToast("申请数据已刷新", "success");
+        } catch (e) {
+          this.showToast("刷新失败: " + e.message, "error");
+        }
+      });
+    document
+      .getElementById("refreshClockBtn")
+      .addEventListener("click", async () => {
+        if (!supabaseClient) return;
+        try {
+          await Store.loadClockFromDB();
+          this.renderClock();
+          this.showToast("打卡数据已刷新", "success");
+        } catch (e) {
+          this.showToast("刷新失败: " + e.message, "error");
+        }
+      });
+
+    // 录入按钮
+    var createOrderBtn = document.getElementById("createOrderBtn");
+    if (createOrderBtn)
+      createOrderBtn.addEventListener("click", function () {
+        window.app.showOrderEntry();
+      });
+    var createApplyBtn = document.getElementById("createApplyBtn");
+    if (createApplyBtn)
+      createApplyBtn.addEventListener("click", function () {
+        window.app.showApplyEntry();
+      });
+    var createClockBtn = document.getElementById("createClockBtn");
+    if (createClockBtn)
+      createClockBtn.addEventListener("click", function () {
+        window.app.showClockEntry();
+      });
+
+    // Order filter
+    document.getElementById("orderQueryBtn").addEventListener("click", () => {
+      this.renderOrders();
+    });
+
+    // 全选按钮：点击切换全部勾选
+    document
+      .getElementById("selectAllOrders")
+      .addEventListener("click", function () {
+        var allCbs = document.querySelectorAll(".order-checkbox");
+        var allChecked = Array.from(allCbs).every(function (cb) {
+          return cb.checked;
+        });
+        var newState = !allChecked;
+        var headerCb = document.getElementById("orderHeaderCheckbox");
+        if (headerCb) headerCb.checked = newState;
+        allCbs.forEach(function (cb) {
+          cb.checked = newState;
+        });
+        this.textContent = newState ? "取消全选" : "全选";
+      });
+
+    // 批量删除
+    document
+      .getElementById("batchDeleteOrdersBtn")
+      .addEventListener("click", () => {
+        var checked = document.querySelectorAll(".order-checkbox:checked");
+        if (checked.length === 0) {
+          this.showToast("请先选择要删除的订单", "error");
+          return;
+        }
+        var ids = Array.from(checked).map(function (cb) {
+          return cb.value;
+        });
+        this.promptDelete(
+          "batchOrders",
+          ids,
+          "批量删除 " + ids.length + " 条订单",
+        );
+      });
+
+    // 申请管理 - 全选
+    document
+      .getElementById("selectAllApply")
+      .addEventListener("click", function () {
+        var allCbs = document.querySelectorAll(".apply-checkbox");
+        var allChecked = Array.from(allCbs).every(function (cb) {
+          return cb.checked;
+        });
+        var newState = !allChecked;
+        var hcb = document.getElementById("applyHeaderCheckbox");
+        if (hcb) hcb.checked = newState;
+        allCbs.forEach(function (cb) {
+          cb.checked = newState;
+        });
+        this.textContent = newState ? "取消全选" : "全选";
+      });
+    // 申请管理 - 批量删除
+    document
+      .getElementById("batchDeleteApplyBtn")
+      .addEventListener("click", () => {
+        var checked = document.querySelectorAll(".apply-checkbox:checked");
+        if (checked.length === 0) {
+          this.showToast("请先选择要删除的申请", "error");
+          return;
+        }
+        var ids = Array.from(checked).map(function (cb) {
+          return cb.value;
+        });
+        this.promptDelete(
+          "batchApply",
+          ids,
+          "批量删除 " + ids.length + " 条申请",
+        );
+      });
+
+    // 打卡管理 - 全选
+    document
+      .getElementById("selectAllClock")
+      .addEventListener("click", function () {
+        var allCbs = document.querySelectorAll(".clock-checkbox");
+        var allChecked = Array.from(allCbs).every(function (cb) {
+          return cb.checked;
+        });
+        var newState = !allChecked;
+        var hcb = document.getElementById("clockHeaderCheckbox");
+        if (hcb) hcb.checked = newState;
+        allCbs.forEach(function (cb) {
+          cb.checked = newState;
+        });
+        this.textContent = newState ? "取消全选" : "全选";
+      });
+    // 打卡管理 - 批量删除
+    document
+      .getElementById("batchDeleteClockBtn")
+      .addEventListener("click", () => {
+        var checked = document.querySelectorAll(".clock-checkbox:checked");
+        if (checked.length === 0) {
+          this.showToast("请先选择要删除的打卡记录", "error");
+          return;
+        }
+        var ids = Array.from(checked).map(function (cb) {
+          return cb.value;
+        });
+        this.promptDelete(
+          "batchClock",
+          ids,
+          "批量删除 " + ids.length + " 条打卡记录",
+        );
+      });
+
+    // Apply filter
+    document.getElementById("applyQueryBtn").addEventListener("click", () => {
+      this.renderApply();
+    });
+
+    // Clock filter
+    document.getElementById("clockQueryBtn").addEventListener("click", () => {
+      this.renderClock();
+    });
+
+    // Delete confirm modal
+    document.getElementById("cancelDeleteBtn").addEventListener("click", () => {
+      this.closeModal("deleteConfirmModal");
+      document.getElementById("deletePasswordInput").value = "";
+      document.getElementById("deletePasswordError").style.display = "none";
+    });
+
+    document
+      .getElementById("confirmDeleteBtn")
+      .addEventListener("click", () => {
+        this.handleDeleteConfirm();
+      });
+
+    document
+      .getElementById("deletePasswordInput")
+      .addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          this.handleDeleteConfirm();
+        }
+      });
 
     // 标签页切换回前台时自动静默同步
     document.addEventListener("visibilitychange", () => {
@@ -1472,9 +1860,104 @@ class App {
     }, 3000);
   }
 
+  _populateProjectFilters() {
+    var samples = Store.getSamples() || [];
+    var projects = Store.getProjects() || [];
+    // 品牌
+    var brandSet = {};
+    samples.forEach(function (s) {
+      if (s.brand) brandSet[s.brand] = 1;
+    });
+    projects.forEach(function (p) {
+      if (p.brand) brandSet[p.brand] = 1;
+    });
+    var brands = Object.keys(brandSet).sort();
+    var brandSel = document.getElementById("projectBrandFilter");
+    if (brandSel) {
+      var cur = brandSel.value;
+      brandSel.innerHTML = '<option value="">全部品牌</option>';
+      brands.forEach(function (b) {
+        brandSel.innerHTML +=
+          '<option value="' + esc(b) + '">' + esc(b) + "</option>";
+      });
+      brandSel.value = cur;
+    }
+    // 所属类别
+    var catSel = document.getElementById("projectCategoryFilter");
+    if (catSel) {
+      var cur2 = catSel.value;
+      catSel.innerHTML = '<option value="">所属类别</option>';
+      projects.forEach(function (p) {
+        catSel.innerHTML +=
+          '<option value="' + esc(p.name) + '">' + esc(p.name) + "</option>";
+      });
+      catSel.value = cur2;
+    }
+  }
+
   renderProjects() {
-    const projects = Store.getProjects();
+    // 刷新筛选下拉
+    this._populateProjectFilters();
     const container = document.getElementById("projectsContainer");
+    // Sync search input
+    var searchInput = document.getElementById("projectSearchInput");
+    if (searchInput && this._projectSearch !== undefined) {
+      searchInput.value = this._projectSearch;
+    }
+    // 读取筛选值
+    var brandFlt =
+      (document.getElementById("projectBrandFilter") || {}).value || "";
+    var catFlt =
+      (document.getElementById("projectCategoryFilter") || {}).value || "";
+    var procFlt =
+      (document.getElementById("projectProcFilter") || {}).value || "";
+    var rangeFlt =
+      (document.getElementById("projectRangeFilter") || {}).value || "";
+    this._projectBrandFlt = brandFlt;
+    this._projectCatFlt = catFlt;
+    this._projectProcFlt = procFlt;
+    this._projectRangeFlt = rangeFlt;
+
+    if (this._projectView === "table") {
+      container.className = "";
+      this.renderSampleTable();
+      return;
+    }
+    container.className = "card-grid";
+    var projects = Store.getProjects();
+    // 搜索过滤（品类名/品牌/是否集采）
+    var searchTerm = (this._projectSearch || "").toLowerCase();
+    if (searchTerm) {
+      projects = projects.filter(function (p) {
+        return (
+          (p.name && p.name.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (p.brand && p.brand.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (p.description &&
+            p.description.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (searchTerm.indexOf("集采") !== -1 && p.procurement) ||
+          (searchTerm.indexOf("非集采") !== -1 && !p.procurement)
+        );
+      });
+    }
+    // 卡片模式品牌筛选
+    if (brandFlt) {
+      projects = projects.filter(function (p) {
+        return p.brand === brandFlt;
+      });
+    }
+    // 卡片模式所属类别（按项目名）
+    if (catFlt) {
+      projects = projects.filter(function (p) {
+        return p.name === catFlt;
+      });
+    }
+    // 卡片模式是否集采
+    if (procFlt) {
+      var isProc = procFlt === "集采";
+      projects = projects.filter(function (p) {
+        return (p.procurement || false) === isProc;
+      });
+    }
     if (projects.length === 0) {
       container.innerHTML = `
         <div class="empty-state">
@@ -1572,35 +2055,161 @@ class App {
     container.querySelectorAll(".delete-project-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.stopPropagation();
-        if (confirm("确定要删除该类别及其所有关联样板吗？")) {
-          const id = btn.dataset.id;
-          var allS = Store.getSamples();
-          allS
-            .filter(function (s) {
-              return s.projectId === id;
-            })
-            .forEach(function (s) {
-              if (s.imageUrl) deleteImageFromStorage(s.imageUrl);
-              if (s.thumbnailUrl) deleteImageFromStorage(s.thumbnailUrl);
-            });
-          let projects = Store.getProjects();
-          projects = projects.filter((p) => p.id !== id);
-          Store.saveProjects(projects);
-          let samples = allS.filter((s) => s.projectId !== id);
-          Store.saveSamples(samples);
-          Store.deleteProjectFromDB(id).catch((e) => {
-            console.warn("DB delete project failed:", e);
-            this.showToast("删除数据同步到数据库失败，请检查网络", "error");
-          });
-          Store.deleteSamplesByProjectFromDB(id).catch((e) => {
-            console.warn("DB delete samples failed:", e);
-            this.showToast("删除数据同步到数据库失败，请检查网络", "error");
-          });
-          this.renderProjects();
-          this.showToast("类别已删除", "success");
-        }
+        const project = Store.getProjects().find(function (p) {
+          return p.id === btn.dataset.id;
+        });
+        window.app.promptDelete(
+          "project",
+          btn.dataset.id,
+          "类别 " + (project ? project.name : ""),
+        );
       });
     });
+  }
+
+  // ============ 样板列表视图 ============
+  renderSampleTable() {
+    this._allSamples = Store.getSamples() || [];
+    var samples = Store.getSamples() || [];
+    var projects = Store.getProjects() || [];
+    var container = document.getElementById("projectsContainer");
+
+    // 实时搜索过滤（编号/名称/型号/品牌/品类/集采/范围）
+    var searchTerm = (this._projectSearch || "").toLowerCase();
+    if (searchTerm) {
+      samples = samples.filter(function (s) {
+        var projectName = projectMap[s.projectId] || "";
+        var isProc = projectProcMap[s.projectId];
+        return (
+          (s.code && s.code.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (s.name && s.name.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (s.model && s.model.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (s.brand && s.brand.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (s.procurementRange &&
+            s.procurementRange.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (projectName &&
+            projectName.toLowerCase().indexOf(searchTerm) !== -1) ||
+          (searchTerm.indexOf("集采") !== -1 && isProc) ||
+          (searchTerm.indexOf("非集采") !== -1 && !isProc)
+        );
+      });
+    }
+
+    // Build maps
+    var projectMap = {};
+    var projectProcMap = {};
+    projects.forEach(function (p) {
+      projectMap[p.id] = p.name;
+      projectProcMap[p.id] = p.procurement;
+    });
+
+    if (samples.length === 0) {
+      container.innerHTML = '<div class="empty-table">暂无样板数据</div>';
+      return;
+    }
+
+    // Toolbar filters
+    var brandFlt = this._projectBrandFlt || "";
+    var catFlt = this._projectCatFlt || "";
+    var procFlt = this._projectProcFlt || "";
+    var rangeFlt = this._projectRangeFlt || "";
+
+    var filteredSamples = samples.filter(function (s) {
+      var pass = true;
+      if (brandFlt && s.brand !== brandFlt) pass = false;
+      if (pass && catFlt && projectMap[s.projectId] !== catFlt) pass = false;
+      if (pass && procFlt) {
+        var isProc = projectProcMap[s.projectId] ? "集采" : "非集采";
+        if (isProc !== procFlt) pass = false;
+      }
+      if (pass && rangeFlt) {
+        var r = projectProcMap[s.projectId] ? s.procurementRange : "范围外";
+        if (r !== rangeFlt) pass = false;
+      }
+      return pass;
+    });
+
+    container.innerHTML =
+      '<div style="overflow-x:auto;max-width:100%;">' +
+      '<table class="data-table">' +
+      "<thead><tr>" +
+      '<th style="width:18px;padding:10px 4px;">序号</th>' +
+      '<th style="width:44px;">图片</th>' +
+      "<th>编号</th><th>名称</th><th>型号</th>" +
+      "<th>品牌</th><th>所属类别</th><th>是否集采</th><th>集采范围</th>" +
+      "<th>创建时间</th><th>操作</th>" +
+      "</tr></thead><tbody>" +
+      filteredSamples
+        .map(function (s, i) {
+          var thumb =
+            s.thumbnailUrl || s.imageUrl
+              ? '<img src="' +
+                esc(s.thumbnailUrl || s.imageUrl) +
+                '" style="width:32px;height:32px;object-fit:cover;border-radius:3px;cursor:pointer;display:block;" onclick="window.app.showImagePreview(\'' +
+                esc(s.imageUrl) +
+                "','" +
+                esc(s.name) +
+                "')\">"
+              : '<span style="display:inline-block;width:32px;height:32px;background:var(--bg);border-radius:3px;"></span>';
+          var isProcLabel = projectProcMap[s.projectId] ? "集采" : "非集采";
+          return (
+            "<tr>" +
+            '<td style="text-align:center;padding:10px 4px;font-family:monospace;font-size:0.78rem;color:var(--text-light);">' +
+            (i + 1) +
+            "</td>" +
+            '<td style="vertical-align:middle;">' +
+            thumb +
+            "</td>" +
+            '<td style="font-family:monospace;font-size:0.78rem;">' +
+            esc(s.code) +
+            "</td>" +
+            "<td>" +
+            esc(s.name) +
+            "</td>" +
+            "<td>" +
+            esc(s.model) +
+            "</td>" +
+            "<td>" +
+            esc(s.brand) +
+            "</td>" +
+            "<td>" +
+            esc(projectMap[s.projectId] || "-") +
+            "</td>" +
+            '<td style="color:' +
+            (isProcLabel === "集采" ? "var(--success)" : "var(--danger)") +
+            ';font-weight:500;">' +
+            esc(isProcLabel) +
+            "</td>" +
+            '<td style="color:' +
+            (projectProcMap[s.projectId]
+              ? s.procurementRange === "范围内"
+                ? "var(--success)"
+                : "var(--warning)"
+              : "var(--danger)") +
+            ';font-weight:500;">' +
+            esc(projectProcMap[s.projectId] ? s.procurementRange : "范围外") +
+            "</td>" +
+            '<td style="font-size:0.75rem;white-space:nowrap;">' +
+            formatDateTime(s.createdAt) +
+            "</td>" +
+            '<td><div class="cell-actions">' +
+            "<button onclick=\"window.app.showSampleDetail('" +
+            s.id +
+            "')\">查看</button>" +
+            "<button onclick=\"window.app.editSample('" +
+            s.id +
+            "')\">编辑</button>" +
+            "<button class=\"btn-danger\" onclick=\"window.app.promptDelete('sample','" +
+            s.id +
+            "','样板 " +
+            esc(s.name) +
+            "')\">删除</button>" +
+            "</div></td>" +
+            "</tr>"
+          );
+        })
+        .join("") +
+      "</tbody></table></div>";
   }
 
   async saveProject() {
@@ -1620,6 +2229,23 @@ class App {
     const procurementStart = isProc && sy && sm ? sy + "-" + sm : "";
     const procurementEnd = isProc && ey && em ? ey + "-" + em : "";
     const brand = document.getElementById("projectBrand").value.trim();
+
+    if (
+      isProc &&
+      sy &&
+      (sy.length !== 4 || parseInt(sy) < 2022 || parseInt(sy) > 2050)
+    ) {
+      this.showToast("开始年必须是 2022-2050 的四位数", "error");
+      return;
+    }
+    if (
+      isProc &&
+      ey &&
+      (ey.length !== 4 || parseInt(ey) < 2022 || parseInt(ey) > 2050)
+    ) {
+      this.showToast("结束年必须是 2022-2050 的四位数", "error");
+      return;
+    }
 
     if (!name) {
       this.showToast("请输入类别名称", "error");
@@ -1703,10 +2329,28 @@ class App {
 
     document.getElementById("currentProjectName").textContent = project.name;
     document.getElementById("selectAllBtn").textContent = "全选";
-    const samples = Store.getSamples().filter((s) => s.projectId === projectId);
+    var allSamples = Store.getSamples().filter(
+      (s) => s.projectId === projectId,
+    );
     const container = document.getElementById("samplesContainer");
     this.selectedSamples.clear();
     this.updateBatchPrintBtn();
+
+    // 样板模糊匹配（编号/名称/型号/范围）
+    var brandSel = document.getElementById("sampleBrandFilter");
+    var brandFlt = brandSel ? brandSel.value.trim() : "";
+    var samples = brandFlt
+      ? allSamples.filter(function (s) {
+          var t = brandFlt.toLowerCase();
+          return (
+            (s.code && s.code.toLowerCase().indexOf(t) !== -1) ||
+            (s.name && s.name.toLowerCase().indexOf(t) !== -1) ||
+            (s.model && s.model.toLowerCase().indexOf(t) !== -1) ||
+            (s.procurementRange &&
+              s.procurementRange.toLowerCase().indexOf(t) !== -1)
+          );
+        })
+      : allSamples;
 
     if (samples.length === 0) {
       container.innerHTML = `
@@ -1721,6 +2365,21 @@ class App {
     container.innerHTML = samples
       .map((sample) => {
         const initials = sample.name ? sample.name.substring(0, 2) : "??";
+        const isProc = project && project.procurement;
+        let scopeText, scopeColor, labelBg;
+        if (isProc) {
+          const r =
+            sample.procurementRange ||
+            (sample.procurement ? "范围内" : "范围外");
+          scopeText = "集采 · " + r;
+          scopeColor = r === "范围内" ? "var(--success)" : "var(--warning)";
+          labelBg =
+            r === "范围内" ? "rgba(52,199,89,0.85)" : "rgba(255,149,0,0.85)";
+        } else {
+          scopeText = "非集采 · 范围外";
+          scopeColor = "var(--danger)";
+          labelBg = "rgba(255,59,48,0.85)";
+        }
         return `
         <div class="sample-card" data-id="${sample.id}">
           <input type="checkbox" class="sample-checkbox" data-id="${sample.id}" ${this.selectedSamples.has(sample.id) ? "checked" : ""}>
@@ -1730,7 +2389,7 @@ class App {
                 ? `<img class="sample-image" src="${sample.thumbnailUrl || sample.imageUrl}" alt="${sample.name}" loading="lazy" data-fullsrc="${sample.imageUrl}">`
                 : `<div class="sample-image-placeholder">${initials}</div>`
             }
-            <button class="btn-label-print" data-id="${sample.id}" title="打印标签">标签</button>
+            <button class="btn-label-print" data-id="${sample.id}" title="打印标签" style="background:${labelBg};">标签</button>
           </div>
           <div class="sample-info">
             <div class="sample-title-row">
@@ -1738,7 +2397,7 @@ class App {
               <span class="sample-model">${sample.model || ""}</span>
             </div>
             <div class="sample-code">${sample.code || ""}</div>
-            <div class="sample-scope">${project && project.procurement ? sample.procurementRange || (sample.procurement ? "集采 · 范围内" : "集采 · 范围外") : "非集采 · 范围外"}</div>
+            <div class="sample-scope" style="color:${scopeColor};">${scopeText}</div>
           </div>
           <div class="card-actions" style="padding:8px 12px;border-top:1px solid var(--border);background:var(--bg);display:flex;gap:4px;">
             <button class="btn btn-sm btn-ghost view-sample-detail-btn" data-id="${sample.id}" style="flex:1;">详情</button>
@@ -1843,22 +2502,13 @@ class App {
   }
 
   initProjectTimeSelects() {
-    var year = new Date().getFullYear();
     [
       ["procStartYear", "开始年", "procStartMonth"],
       ["procEndYear", "结束年", "procEndMonth"],
     ].forEach(function (pair) {
-      var ySel = document.getElementById(pair[0]);
       var mSel = document.getElementById(pair[2]);
-      if (!ySel || !mSel) return;
-      ySel.innerHTML = '<option value="">' + pair[1] + "</option>";
+      if (!mSel) return;
       mSel.innerHTML = '<option value="">月</option>';
-      for (var y = year - 5; y <= year + 5; y++) {
-        var opt = document.createElement("option");
-        opt.value = String(y);
-        opt.textContent = y + "年";
-        ySel.appendChild(opt);
-      }
       for (var m = 1; m <= 12; m++) {
         var opt = document.createElement("option");
         var mv = String(m).padStart(2, "0");
@@ -1867,6 +2517,25 @@ class App {
         mSel.appendChild(opt);
       }
     });
+    // year input: only allow digits, validate on blur
+    document
+      .querySelectorAll("#procStartYear,#procEndYear")
+      .forEach(function (inp) {
+        inp.addEventListener("input", function () {
+          this.value = this.value.replace(/\D/g, "").slice(0, 4);
+        });
+        inp.addEventListener("blur", function () {
+          var v = this.value.trim();
+          if (
+            v &&
+            (v.length !== 4 || parseInt(v) < 2022 || parseInt(v) > 2050)
+          ) {
+            this.style.borderColor = "var(--danger)";
+          } else {
+            this.style.borderColor = "";
+          }
+        });
+      });
   }
 
   openCropModal(file) {
@@ -2257,6 +2926,13 @@ class App {
   }
 
   editSample(sample) {
+    // 支持传字符串 ID
+    if (typeof sample === "string") {
+      sample = this._allSamples
+        ? this._allSamples.find((s) => s.id === sample)
+        : null;
+      if (!sample) return;
+    }
     this.openModal("sampleModal");
     document.getElementById("sampleModalTitle").textContent = "编辑样板";
     document.getElementById("sampleId").value = sample.id;
@@ -2320,7 +2996,9 @@ class App {
     const qrUrl = qrPageUrl(sample.id);
 
     const procurementLabel = project && project.procurement ? "集采" : "非集采";
-    const procurementBadge = `<span class="card-badge ${project && project.procurement ? "procurement" : "non-procurement"}" style="font-size:0.72rem;padding:1px 8px;">${procurementLabel}</span>`;
+    const badgeColor =
+      procurementLabel === "集采" ? "var(--success)" : "var(--danger)";
+    const procurementBadge = `<span style="display:inline-block;padding:1px 0;border-radius:var(--radius);color:${badgeColor};">${procurementLabel}</span>`;
 
     const cell = (label, value, span, extraStyle) => {
       const s = span ? ` style="grid-column:span ${span};"` : "";
@@ -2330,10 +3008,8 @@ class App {
 
     const cells = [];
 
-    cells.push(
-      cell("名称", sample.name, null, "font-weight:600;font-size:.95rem"),
-    );
-    cells.push(cell("编号", sample.code || "-", null, "font-family:monospace"));
+    cells.push(cell("名称", sample.name));
+    cells.push(cell("编号", sample.code || "-"));
     cells.push(cell("类别", project ? project.name : "-"));
     cells.push(cell("型号", sample.model || "-"));
     cells.push(cell("品牌", sample.brand || "-"));
@@ -2342,47 +3018,25 @@ class App {
     cells.push(cell("材质", sample.material || "-"));
 
     if (project && project.procurement) {
-      cells.push(cell("集采", procurementBadge));
+      cells.push(cell("是否集采", procurementBadge));
       cells.push(
         cell(
           "集采时间",
           `${formatDate(project.procurementStart)} - ${formatDate(project.procurementEnd)}`,
         ),
       );
-      cells.push(
-        cell(
-          "范围",
-          sample.procurementRange || (sample.procurement ? "范围内" : "范围外"),
-        ),
-      );
+      const rangeVal =
+        sample.procurementRange || (sample.procurement ? "范围内" : "范围外");
+      const rangeColor =
+        rangeVal === "范围内" ? "var(--success)" : "var(--warning)";
+      cells.push(cell("集采范围", rangeVal, null, `color:${rangeColor};`));
     } else {
-      cells.push(cell("集采", procurementBadge, 2));
+      cells.push(cell("是否集采", procurementBadge, 2));
     }
-    cells.push(
-      cell(
-        "创建",
-        formatDateTime(sample.createdAt),
-        null,
-        "font-size:.78rem;color:var(--text-light)",
-      ),
-    );
-    cells.push(
-      cell(
-        "更新",
-        formatDateTime(sample.updatedAt),
-        null,
-        "font-size:0.78rem;color:var(--text-light)",
-      ),
-    );
+    cells.push(cell("创建", formatDateTime(sample.createdAt)));
+    cells.push(cell("更新", formatDateTime(sample.updatedAt)));
 
-    cells.push(
-      cell(
-        "描述",
-        sample.description || "-",
-        2,
-        "color:var(--text-secondary);line-height:1.5;",
-      ),
-    );
+    cells.push(cell("描述", sample.description || "-", 2));
 
     if (sample.imageUrl) {
       cells.push(
@@ -2392,7 +3046,7 @@ class App {
 
     const qrSpan = sample.imageUrl ? 2 : 4;
     cells.push(
-      `<div class="detail-cell" style="grid-column:span ${qrSpan};"><span class="cell-label">二维码</span><div class="cell-qr-wrap"><canvas id="detailQrCode" width="80" height="80"></canvas><span style="font-size:0.7rem;color:var(--text-light);word-break:break-all;line-height:1.4;">${qrUrl}</span></div></div>`,
+      `<div class="detail-cell" style="grid-column:span ${qrSpan};"><span class="cell-label">二维码</span><div class="cell-qr-wrap"><canvas id="detailQrCode" width="120" height="120"></canvas><span style="font-size:0.7rem;color:var(--text-light);word-break:break-all;line-height:1.4;">${qrUrl}</span></div></div>`,
     );
 
     container.innerHTML = `
@@ -2743,6 +3397,1075 @@ class App {
         this.renderInfoView();
       });
     });
+  }
+
+  // ============ 通用录入弹窗 ============
+  _makeEntryModal(id, title, fields, saveFn) {
+    var old = document.getElementById(id);
+    if (old) old.remove();
+    var overlay = document.createElement("div");
+    overlay.className = "modal-overlay active";
+    overlay.id = id;
+    var fieldHtml = fields
+      .map(function (f) {
+        if (f.type === "select") {
+          var opts = f.options
+            .map(function (o) {
+              return '<option value="' + esc(o) + '">' + esc(o) + "</option>";
+            })
+            .join("");
+          return (
+            '<div class="form-group"><label>' +
+            esc(f.label) +
+            '</label><select id="' +
+            esc(f.id) +
+            '">' +
+            opts +
+            "</select></div>"
+          );
+        }
+        return (
+          '<div class="form-group"><label>' +
+          esc(f.label) +
+          '</label><input type="' +
+          esc(f.type || "text") +
+          '" id="' +
+          esc(f.id) +
+          '" placeholder="' +
+          esc(f.placeholder || "") +
+          '" /></div>'
+        );
+      })
+      .join("");
+    overlay.innerHTML =
+      '<div class="modal" style="max-width:480px"><div class="modal-header"><h3>' +
+      esc(title) +
+      '</h3><button class="modal-close">&times;</button></div><form class="modal-body" id="' +
+      id +
+      'Form">' +
+      fieldHtml +
+      '<div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px"><button type="button" class="btn btn-secondary modal-close-btn">取消</button><button type="submit" class="btn btn-primary">保存</button></div></form></div>';
+    document.body.appendChild(overlay);
+    overlay
+      .querySelector(".modal-close")
+      .addEventListener("click", function () {
+        overlay.remove();
+      });
+    overlay
+      .querySelector(".modal-close-btn")
+      .addEventListener("click", function () {
+        overlay.remove();
+      });
+    overlay.addEventListener("click", function (e) {
+      if (e.target === overlay) overlay.remove();
+    });
+    overlay.querySelector("form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var data = {};
+      fields.forEach(function (f) {
+        data[f.key] = document.getElementById(f.id).value.trim();
+      });
+      saveFn(data, function () {
+        overlay.remove();
+      });
+    });
+  }
+
+  showOrderEntry() {
+    var self = this;
+    this._makeEntryModal(
+      "orderEntryModal",
+      "录入订单",
+      [
+        { label: "下单人", id: "oeName", key: "name", placeholder: "必填" },
+        { label: "电话", id: "oePhone", key: "phone", placeholder: "必填" },
+        { label: "公司", id: "oeCompany", key: "company" },
+        { label: "项目", id: "oeProject", key: "project" },
+        { label: "备注", id: "oeRemark", key: "remark" },
+      ],
+      function (data, done) {
+        if (!data.name || !data.phone) {
+          alert("请填写下单人和电话");
+          return;
+        }
+        var orders = Store.getOrders();
+        data.id = crypto.randomUUID
+          ? crypto.randomUUID()
+          : "ord-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+        data.orderNo =
+          "MANUAL-" +
+          Date.now().toString(36).toUpperCase() +
+          "-" +
+          Math.random().toString(36).slice(2, 6).toUpperCase();
+        data.status = "未提交";
+        data.createdAt = new Date().toISOString();
+        data.updatedAt = data.createdAt;
+        data.openid = self.user ? self.user.id || self.user.openid || "" : "";
+        orders.unshift(data);
+        Store.saveOrders(orders);
+        if (supabaseClient && self.user && !self.user.isDemo) {
+          supabaseClient
+            .from("orders")
+            .insert(toSnakeCase(data))
+            .then(function (r) {
+              if (r.error) console.warn("sync order failed:", r.error);
+            });
+        }
+        self.renderOrders();
+        done();
+        self.showToast("订单已录入", "success");
+      },
+    );
+  }
+
+  showApplyEntry() {
+    var self = this;
+    this._makeEntryModal(
+      "applyEntryModal",
+      "录入申请",
+      [
+        { label: "申请人", id: "aeName", key: "name", placeholder: "必填" },
+        { label: "电话", id: "aePhone", key: "phone", placeholder: "必填" },
+        { label: "公司", id: "aeCompany", key: "company" },
+        {
+          label: "事由类型",
+          id: "aeType",
+          key: "type",
+          type: "select",
+          options: ["运输", "参观", "选样", "借还", "其他"],
+        },
+        {
+          label: "来访日期",
+          id: "aeVisitDate",
+          key: "visitDate",
+          type: "date",
+        },
+        { label: "备注", id: "aeRemark", key: "remark" },
+      ],
+      function (data, done) {
+        if (!data.name || !data.phone) {
+          alert("请填写申请人和电话");
+          return;
+        }
+        var list = Store.getApplyRecords();
+        data.id = crypto.randomUUID
+          ? crypto.randomUUID()
+          : "app-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+        data.status = "待审核";
+        data.createdAt = new Date().toISOString();
+        data.updatedAt = data.createdAt;
+        data.openid = self.user ? self.user.id || self.user.openid || "" : "";
+        list.unshift(data);
+        Store.saveApplyRecords(list);
+        if (supabaseClient && self.user && !self.user.isDemo) {
+          supabaseClient
+            .from("apply_records")
+            .insert(toSnakeCase(data))
+            .then(function (r) {
+              if (r.error) console.warn("sync apply failed:", r.error);
+            });
+        }
+        self.renderApply();
+        done();
+        self.showToast("申请已录入", "success");
+      },
+    );
+  }
+
+  showClockEntry() {
+    var self = this;
+    this._makeEntryModal(
+      "clockEntryModal",
+      "录入打卡",
+      [
+        { label: "姓名", id: "ceName", key: "name", placeholder: "必填" },
+        { label: "电话", id: "cePhone", key: "phone", placeholder: "必填" },
+        { label: "公司", id: "ceCompany", key: "company" },
+        {
+          label: "公司类型",
+          id: "ceCompanyType",
+          key: "companyType",
+          type: "select",
+          options: ["业主方", "运营方", "品牌方", "其他"],
+        },
+        { label: "打卡位置", id: "ceLocation", key: "clockLocationName" },
+        { label: "打卡事由", id: "ceReason", key: "reason" },
+      ],
+      function (data, done) {
+        if (!data.name || !data.phone) {
+          alert("请填写姓名和电话");
+          return;
+        }
+        var list = Store.getClockRecords();
+        data.id = crypto.randomUUID
+          ? crypto.randomUUID()
+          : "clk-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8);
+        data.clockTime = new Date().toISOString();
+        data.verifyResult = true;
+        data.createdAt = new Date().toISOString();
+        data.updatedAt = data.createdAt;
+        data.openid = self.user ? self.user.id || self.user.openid || "" : "";
+        list.unshift(data);
+        Store.saveClockRecords(list);
+        if (supabaseClient && self.user && !self.user.isDemo) {
+          supabaseClient
+            .from("clock_records")
+            .insert(toSnakeCase(data))
+            .then(function (r) {
+              if (r.error) console.warn("sync clock failed:", r.error);
+            });
+        }
+        self.renderClock();
+        done();
+        self.showToast("打卡已录入", "success");
+      },
+    );
+  }
+
+  // ============ 仪表盘 ============
+  copyInviteCode() {
+    var code = Store.getDailyCode();
+    if (!code) return;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(code)
+        .then(function () {
+          window.app.showToast("已复制邀请码: " + code, "success");
+        })
+        .catch(function () {
+          alert("邀请码: " + code);
+        });
+    } else {
+      alert("邀请码: " + code);
+    }
+  }
+
+  renderDashboard() {
+    var projects = Store.getProjects() || [];
+    var samples = Store.getSamples() || [];
+    var orders = Store.getOrders() || [];
+    var apply = Store.getApplyRecords() || [];
+    var clock = Store.getClockRecords() || [];
+
+    // 如果是演示模式或空数据，拉取一遍
+    if (this.user && this.user.isDemo) {
+      this.seedDemoData();
+      projects = Store.getProjects();
+      samples = Store.getSamples();
+      orders = Store.getOrders();
+      apply = Store.getApplyRecords();
+      clock = Store.getClockRecords();
+    }
+
+    var sc = samples.length;
+    var pc = projects.length;
+    var dailyCode = Store.getDailyCode();
+
+    var html = '<div class="dashboard-grid">';
+
+    // 第一行：样板 + 品类 + 邀请码
+    html += '<div class="dash-metric-row">';
+    html +=
+      '<div class="dash-metric-card"><div class="dash-num" data-target="' +
+      sc +
+      '">0</div><div class="dash-label">已录入样板</div></div>';
+    html +=
+      '<div class="dash-metric-card"><div class="dash-num" data-target="' +
+      pc +
+      '">0</div><div class="dash-label">当前品类</div></div>';
+    html +=
+      '<div class="dash-metric-card invite-code-card"><div class="dash-num dash-code" id="dashInviteCode">' +
+      this._randomCodeStr(dailyCode.length || 6) +
+      '</div><div class="dash-label">今日邀请码</div></div>';
+    html += "</div>";
+
+    // 第二行：三个甜甜圈图
+    html += '<div class="dash-chart-row">';
+    html += this._donutChart("订单状态", orders, "status", {
+      未提交: "#FF9800",
+      已收录: "#4CAF50",
+    });
+    html += this._donutChart("申请类型", apply, "type", {
+      运输: "#2196F3",
+      参观: "#9C27B0",
+      选样: "#FF5722",
+      借还: "#00BCD4",
+      其他: "#607D8B",
+    });
+    html += this._donutChart("打卡角色", clock, "companyType", {
+      业主方: "#4CAF50",
+      运营方: "#2196F3",
+      品牌方: "#FF9800",
+      其他: "#607D8B",
+    });
+    html += "</div>";
+
+    html += "</div>";
+
+    document.getElementById("dashboardContainer").innerHTML = html;
+
+    // 动画：数字计数
+    this._animateNumbers();
+    // 动画：邀请码翻转
+    this._animateFlipCode(dailyCode);
+    // 动画：甜甜圈比例
+    this._animateDonuts();
+  }
+
+  // 计数动画
+  _animateNumbers() {
+    var els = document.querySelectorAll(".dash-num[data-target]");
+    els.forEach(function (el) {
+      var target = parseInt(el.getAttribute("data-target"), 10);
+      if (isNaN(target) || target <= 0) {
+        el.textContent = target || 0;
+        return;
+      }
+      var duration = 800;
+      var start = performance.now();
+      function step(now) {
+        var t = Math.min((now - start) / duration, 1);
+        var eased = 1 - Math.pow(1 - t, 3);
+        el.textContent = Math.round(eased * target);
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  // 邀请码翻牌效果
+  _animateFlipCode(finalCode) {
+    var el = document.getElementById("dashInviteCode");
+    if (!el || !finalCode) return;
+    var len = finalCode.length;
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    var duration = 1200;
+    var interval = 60;
+    var steps = Math.floor(duration / interval);
+    var count = 0;
+    var timer = setInterval(function () {
+      count++;
+      var pct = count / steps;
+      var fixed = Math.floor(pct * len);
+      var s = "";
+      for (var i = 0; i < len; i++) {
+        s +=
+          i < fixed
+            ? finalCode[i]
+            : chars[Math.floor(Math.random() * chars.length)];
+      }
+      el.textContent = s;
+      if (count >= steps) {
+        clearInterval(timer);
+        el.textContent = finalCode;
+      }
+    }, interval);
+  }
+
+  _animateDonuts() {
+    var els = document.querySelectorAll(".donut-chart[data-final-bg]");
+    if (els.length === 0) return;
+    var self = this;
+    els.forEach(function (el) {
+      var finalBg = el.getAttribute("data-final-bg");
+      if (!finalBg || finalBg.indexOf("conic-gradient") !== 0) return;
+      var content = finalBg.slice("conic-gradient(".length, -1);
+      var parts = content
+        .split(", ")
+        .map(function (p) {
+          var m = p.match(/^(#[0-9a-fA-F]{3,8})\s+([\d.]+)deg\s+([\d.]+)deg$/);
+          return m
+            ? { color: m[1], from: parseFloat(m[2]), to: parseFloat(m[3]) }
+            : null;
+        })
+        .filter(Boolean);
+      if (parts.length === 0) {
+        el.style.background = finalBg;
+        return;
+      }
+
+      var duration = 800;
+      var start = performance.now();
+      function step(now) {
+        var t = Math.min((now - start) / duration, 1);
+        var eased = 1 - Math.pow(1 - t, 3);
+        var cur = parts.map(function (p) {
+          var c = self._lerpColor("#e0e0e0", p.color, eased);
+          return c + " " + p.from + "deg " + p.to + "deg";
+        });
+        el.style.background = "conic-gradient(" + cur.join(", ") + ")";
+        if (t < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    });
+  }
+
+  _lerpColor(c1, c2, t) {
+    var r1 = parseInt(c1.slice(1, 3), 16),
+      g1 = parseInt(c1.slice(3, 5), 16),
+      b1 = parseInt(c1.slice(5, 7), 16);
+    var r2 = parseInt(c2.slice(1, 3), 16),
+      g2 = parseInt(c2.slice(3, 5), 16),
+      b2 = parseInt(c2.slice(5, 7), 16);
+    var r = Math.round(r1 + (r2 - r1) * t);
+    var g = Math.round(g1 + (g2 - g1) * t);
+    var b = Math.round(b1 + (b2 - b1) * t);
+    return (
+      "#" +
+      [r, g, b]
+        .map(function (x) {
+          return x.toString(16).padStart(2, "0");
+        })
+        .join("")
+    );
+  }
+
+  _randomCodeStr(len) {
+    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    var s = "";
+    for (var i = 0; i < len; i++)
+      s += chars[Math.floor(Math.random() * chars.length)];
+    return s;
+  }
+
+  // 生成甜甜圈图 HTML
+  _donutChart(title, data, field, colorMap) {
+    var total = data.length;
+    var counts = {};
+    data.forEach(function (d) {
+      var val = d[field] || "其他";
+      counts[val] = (counts[val] || 0) + 1;
+    });
+
+    if (total === 0) {
+      return (
+        '<div class="dash-chart-card"><h3>' +
+        title +
+        '</h3><div class="dash-chart-body"><div style="color:var(--text-light);font-size:0.85rem;">暂无数据</div></div></div>'
+      );
+    }
+
+    // 构建渐变色
+    var conicParts = [];
+    var legendHtml = "";
+    var startDeg = 0;
+    var idx = 0;
+    var colorKeys = Object.keys(colorMap);
+    for (var ci = 0; ci < colorKeys.length; ci++) {
+      var key = colorKeys[ci];
+      var cnt = counts[key] || 0;
+      if (cnt === 0) continue;
+      var pct = (cnt / total) * 100;
+      var deg = (cnt / total) * 360;
+      var color = colorMap[key];
+      conicParts.push(
+        color + " " + startDeg + "deg " + (startDeg + deg) + "deg",
+      );
+      legendHtml +=
+        '<div class="donut-legend-item"><span class="color-dot" style="background:' +
+        color +
+        '"></span><span class="legend-label">' +
+        key +
+        '</span><span class="legend-val">' +
+        cnt +
+        '</span><span class="legend-pct">' +
+        Math.round(pct) +
+        "%</span></div>";
+      startDeg += deg;
+      idx++;
+    }
+
+    // 处理其他未在 colorMap 中的值
+    for (var k in counts) {
+      if (colorKeys.indexOf(k) === -1) {
+        var cnt2 = counts[k];
+        var pct2 = (cnt2 / total) * 100;
+        var deg2 = (cnt2 / total) * 360;
+        conicParts.push(
+          "#607D8B " + startDeg + "deg " + (startDeg + deg2) + "deg",
+        );
+        legendHtml +=
+          '<div class="donut-legend-item"><span class="color-dot" style="background:#607D8B"></span><span class="legend-label">' +
+          k +
+          '</span><span class="legend-val">' +
+          cnt2 +
+          '</span><span class="legend-pct">' +
+          Math.round(pct2) +
+          "%</span></div>";
+        startDeg += deg2;
+      }
+    }
+
+    var bg =
+      conicParts.length > 0
+        ? "conic-gradient(" + conicParts.join(", ") + ")"
+        : "#eee";
+
+    var finalBg = bg;
+
+    // 初始渲染灰色，动画过渡到最终色
+    bg = conicParts.length > 0 ? "conic-gradient(#e0e0e0 0deg 360deg)" : "#eee";
+
+    return (
+      '<div class="dash-chart-card">' +
+      "<h3>" +
+      title +
+      ' <span class="dash-total">(共' +
+      total +
+      "条)</span></h3>" +
+      '<div class="dash-chart-body">' +
+      '<div class="donut-wrapper"><div class="donut-chart" data-final-bg="' +
+      esc(finalBg) +
+      '" style="background:' +
+      bg +
+      '"></div></div>' +
+      '<div class="donut-legend">' +
+      legendHtml +
+      "</div>" +
+      "</div></div>"
+    );
+  }
+
+  // ============ 订单管理 ============
+  renderOrders() {
+    const orders = Store.getOrders();
+    const container = document.getElementById("ordersContainer");
+    const searchVal = document
+      .getElementById("orderSearchInput")
+      .value.trim()
+      .toLowerCase();
+    const statusVal = document.getElementById("orderStatusFilter").value;
+    const dateStart = document.getElementById("orderDateStart").value;
+    const dateEnd = document.getElementById("orderDateEnd").value;
+
+    let filtered = orders;
+    if (searchVal)
+      filtered = filtered.filter((o) =>
+        o.orderNo.toLowerCase().includes(searchVal),
+      );
+    if (statusVal) filtered = filtered.filter((o) => o.status === statusVal);
+    if (dateStart) filtered = filtered.filter((o) => o.createdAt >= dateStart);
+    if (dateEnd)
+      filtered = filtered.filter((o) => o.createdAt <= dateEnd + "T23:59:59");
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty-table">暂无订单数据</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="orderHeaderCheckbox" /></th>
+            <th>订单号</th>
+            <th>下单人</th>
+            <th>电话</th>
+            <th>公司</th>
+            <th>项目</th>
+            <th>状态</th>
+            <th>时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered
+            .map(
+              (o) => `
+            <tr>
+              <td><input type="checkbox" class="order-checkbox" value="${o.id}" /></td>
+              <td style="font-family:monospace;font-size:0.78rem;">${esc(o.orderNo)}</td>
+              <td>${esc(o.name)}</td>
+              <td>${esc(o.phone)}</td>
+              <td>${esc(o.company)}</td>
+              <td>${esc(o.project)}</td>
+              <td><span class="status-badge ${o.status === "已收录" ? "done" : "pending"}">${esc(o.status)}</span></td>
+              <td style="font-size:0.75rem;white-space:nowrap;">${formatDateTime(o.createdAt)}</td>
+              <td>
+                <div class="cell-actions">
+                  <button onclick="window.app.showOrderDetail('${o.id}')">详情</button>
+                  <button class="btn-success" onclick="window.app.toggleOrderStatus('${o.id}')">${o.status === "已收录" ? "↩" : "✓"}</button>
+                  <button class="btn-danger" onclick="window.app.promptDelete('order','${o.id}','订单 ${esc(o.orderNo)}')">删除</button>
+                </div>
+              </td>
+            </tr>
+          `,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `;
+
+    // 表头全选 ↔ 全选按钮联动
+    var headerCb = document.getElementById("orderHeaderCheckbox");
+    var selectAllBtn = document.getElementById("selectAllOrders");
+    if (headerCb && selectAllBtn) {
+      headerCb.addEventListener("change", function () {
+        var checked = headerCb.checked;
+        document.querySelectorAll(".order-checkbox").forEach(function (cb) {
+          cb.checked = checked;
+        });
+        selectAllBtn.textContent = checked ? "取消全选" : "全选";
+      });
+    }
+  }
+
+  async showOrderDetail(id) {
+    const orders = Store.getOrders();
+    const order = orders.find((o) => o.id === id);
+    if (!order) return;
+
+    // Fetch order items
+    let items = [];
+    if (supabaseClient) {
+      const { data } = await supabaseClient
+        .from("order_items")
+        .select("*")
+        .eq("order_no", order.orderNo);
+      if (data) items = data.map(fromSnakeCase);
+    }
+
+    document.getElementById("detailModalTitle").textContent = "订单详情";
+
+    let html = `
+      <div class="detail-grid">
+        <div class="detail-row"><span class="detail-label">订单号</span><span class="detail-value" style="font-family:monospace">${esc(order.orderNo)}</span></div>
+        <div class="detail-row"><span class="detail-label">下单人</span><span class="detail-value">${esc(order.name)}</span></div>
+        <div class="detail-row"><span class="detail-label">电话</span><span class="detail-value">${esc(order.phone)}</span></div>
+        <div class="detail-row"><span class="detail-label">公司</span><span class="detail-value">${esc(order.company)}</span></div>
+        <div class="detail-row"><span class="detail-label">项目</span><span class="detail-value">${esc(order.project)}</span></div>
+        <div class="detail-row"><span class="detail-label">状态</span><span class="detail-value"><span class="status-badge ${order.status === "已收录" ? "done" : "pending"}">${esc(order.status)}</span></span></div>
+        <div class="detail-row"><span class="detail-label">备注</span><span class="detail-value">${esc(order.remark) || "-"}</span></div>
+        <div class="detail-row"><span class="detail-label">创建时间</span><span class="detail-value">${formatDateTime(order.createdAt)}</span></div>
+        <div class="detail-row"><span class="detail-label">更新时间</span><span class="detail-value">${formatDateTime(order.updatedAt)}</span></div>
+      </div>
+    `;
+
+    if (items.length > 0) {
+      html += `<div class="detail-section-title">产品明细（${items.length} 项）</div>`;
+      html += `
+        <table class="detail-items-table">
+          <thead>
+            <tr>
+              <th>品名</th>
+              <th>型号</th>
+              <th>品牌</th>
+              <th>品类</th>
+              <th>规格</th>
+              <th>集采</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${items
+              .map(
+                (item) => `
+              <tr>
+                <td>${esc(item.productName)}</td>
+                <td>${esc(item.model)}</td>
+                <td>${esc(item.brand)}</td>
+                <td>${esc(item.category)}</td>
+                <td>${esc(item.specs)}</td>
+                <td>${item.procurement ? esc(item.procurementRange) || "范围内" : "非集采"}</td>
+              </tr>
+            `,
+              )
+              .join("")}
+          </tbody>
+        </table>
+      `;
+    }
+
+    document.getElementById("detailModalBody").innerHTML = html;
+    this.openModal("detailModal");
+  }
+
+  async toggleOrderStatus(id) {
+    const orders = Store.getOrders();
+    const order = orders.find((o) => o.id === id);
+    if (!order) return;
+    const newStatus = order.status === "已收录" ? "未提交" : "已收录";
+    if (supabaseClient) {
+      const { error } = await supabaseClient
+        .from("orders")
+        .update({ status: newStatus })
+        .eq("id", id);
+      if (error) {
+        this.showToast("状态更新失败", "error");
+        return;
+      }
+    }
+    order.status = newStatus;
+    Store.saveOrders(orders);
+    this.renderOrders();
+    this.showToast("状态已更新", "success");
+  }
+
+  // ============ 申请管理 ============
+  renderApply() {
+    const records = Store.getApplyRecords();
+    const container = document.getElementById("applyContainer");
+    const searchVal = document
+      .getElementById("applySearchInput")
+      .value.trim()
+      .toLowerCase();
+    const typeVal = document.getElementById("applyTypeFilter").value;
+    const statusVal = document.getElementById("applyStatusFilter").value;
+    const dateStart = document.getElementById("applyDateStart").value;
+    const dateEnd = document.getElementById("applyDateEnd").value;
+
+    let filtered = records;
+    if (searchVal)
+      filtered = filtered.filter((r) =>
+        r.name.toLowerCase().includes(searchVal),
+      );
+    if (typeVal) filtered = filtered.filter((r) => r.type === typeVal);
+    if (statusVal) filtered = filtered.filter((r) => r.status === statusVal);
+    if (dateStart) filtered = filtered.filter((r) => r.createdAt >= dateStart);
+    if (dateEnd)
+      filtered = filtered.filter((r) => r.createdAt <= dateEnd + "T23:59:59");
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty-table">暂无申请记录</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="applyHeaderCheckbox" /></th>
+            <th>申请人</th>
+            <th>电话</th>
+            <th>公司</th>
+            <th>事由类型</th>
+            <th>来访日期</th>
+            <th>状态</th>
+            <th>提交时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered
+            .map(
+              (r) => `
+            <tr>
+              <td><input type="checkbox" class="apply-checkbox" value="${r.id}" /></td>
+              <td>${esc(r.name)}</td>
+              <td>${esc(r.phone)}</td>
+              <td>${esc(r.company)}</td>
+              <td>${esc(r.type)}${r.type === "运输" && r.licensePlate ? " · " + esc(r.licensePlate) : ""}</td>
+              <td style="font-size:0.75rem;">${esc(r.visitDate) || "-"}</td>
+              <td><span class="status-badge ${r.status === "已收录" ? "done" : "pending"}">${esc(r.status)}</span></td>
+              <td style="font-size:0.75rem;white-space:nowrap;">${formatDateTime(r.createdAt)}</td>
+              <td>
+                <div class="cell-actions">
+                  <button onclick="window.app.showApplyDetail('${r.id}')">详情</button>
+                  ${r.status === "待审核" ? `<button class="btn-success" onclick="window.app.approveApply('${r.id}')">审核</button>` : ""}
+                  <button class="btn-danger" onclick="window.app.promptDelete('apply','${r.id}','申请 ${esc(r.name)} ${esc(r.type)}')">删除</button>
+                </div>
+              </td>
+            </tr>
+          `,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  showApplyDetail(id) {
+    const records = Store.getApplyRecords();
+    const r = records.find((a) => a.id === id);
+    if (!r) return;
+    document.getElementById("detailModalTitle").textContent = "申请详情";
+
+    let extraRows = "";
+    if (r.type === "运输" && r.licensePlate) {
+      extraRows += `<div class="detail-row"><span class="detail-label">车牌号</span><span class="detail-value">${esc(r.licensePlate)}</span></div>`;
+    }
+    if (r.type === "借还" && r.borrowReturnType) {
+      extraRows += `<div class="detail-row"><span class="detail-label">借还类型</span><span class="detail-value">${esc(r.borrowReturnType)}</span></div>`;
+    }
+    if (r.type === "其他" && r.customReason) {
+      extraRows += `<div class="detail-row"><span class="detail-label">具体事由</span><span class="detail-value">${esc(r.customReason)}</span></div>`;
+    }
+
+    document.getElementById("detailModalBody").innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-row"><span class="detail-label">申请人</span><span class="detail-value">${esc(r.name)}</span></div>
+        <div class="detail-row"><span class="detail-label">电话</span><span class="detail-value">${esc(r.phone)}</span></div>
+        <div class="detail-row"><span class="detail-label">公司</span><span class="detail-value">${esc(r.company)}</span></div>
+        <div class="detail-row"><span class="detail-label">事由类型</span><span class="detail-value">${esc(r.type)}</span></div>
+        ${extraRows}
+        <div class="detail-row"><span class="detail-label">来访日期</span><span class="detail-value">${esc(r.visitDate) || "-"}</span></div>
+        <div class="detail-row"><span class="detail-label">状态</span><span class="detail-value"><span class="status-badge ${r.status === "已收录" ? "done" : "pending"}">${esc(r.status)}</span></span></div>
+        <div class="detail-row"><span class="detail-label">审核时间</span><span class="detail-value">${r.approveTime ? formatDateTime(r.approveTime) : "-"}</span></div>
+        <div class="detail-row"><span class="detail-label">备注</span><span class="detail-value">${esc(r.remark) || "-"}</span></div>
+        <div class="detail-row"><span class="detail-label">提交时间</span><span class="detail-value">${formatDateTime(r.createdAt)}</span></div>
+      </div>
+    `;
+    this.openModal("detailModal");
+  }
+
+  async approveApply(id) {
+    const records = Store.getApplyRecords();
+    const r = records.find((a) => a.id === id);
+    if (!r) return;
+    const now = new Date().toISOString();
+    if (supabaseClient) {
+      const { error } = await supabaseClient
+        .from("apply_records")
+        .update({ status: "已收录", approve_time: now })
+        .eq("id", id);
+      if (error) {
+        this.showToast("审核失败", "error");
+        return;
+      }
+    }
+    r.status = "已收录";
+    r.approveTime = now;
+    Store.saveApplyRecords(records);
+    this.renderApply();
+    this.showToast("已收录", "success");
+  }
+
+  // ============ 打卡管理 ============
+  renderClock() {
+    const records = Store.getClockRecords();
+    const container = document.getElementById("clockContainer");
+    const searchVal = document
+      .getElementById("clockSearchInput")
+      .value.trim()
+      .toLowerCase();
+    const typeVal = document.getElementById("clockCompanyTypeFilter").value;
+    const dateStart = document.getElementById("clockDateStart").value;
+    const dateEnd = document.getElementById("clockDateEnd").value;
+
+    let filtered = records;
+    if (searchVal)
+      filtered = filtered.filter((r) =>
+        r.name.toLowerCase().includes(searchVal),
+      );
+    if (typeVal) filtered = filtered.filter((r) => r.companyType === typeVal);
+    if (dateStart) filtered = filtered.filter((r) => r.clockTime >= dateStart);
+    if (dateEnd)
+      filtered = filtered.filter((r) => r.clockTime <= dateEnd + "T23:59:59");
+
+    if (filtered.length === 0) {
+      container.innerHTML = '<div class="empty-table">暂无打卡记录</div>';
+      return;
+    }
+
+    container.innerHTML = `
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th style="width:36px"><input type="checkbox" id="clockHeaderCheckbox" /></th>
+            <th>姓名</th>
+            <th>电话</th>
+            <th>公司</th>
+            <th>公司类型</th>
+            <th>打卡位置</th>
+            <th>核验</th>
+            <th>打卡时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered
+            .map(
+              (r) => `
+            <tr>
+              <td><input type="checkbox" class="clock-checkbox" value="${r.id}" /></td>
+              <td>${esc(r.name)}</td>
+              <td>${esc(r.phone)}</td>
+              <td>${esc(r.company)}</td>
+              <td>${esc(r.companyType) || "-"}</td>
+              <td>${esc(r.clockLocationName) || "-"}</td>
+              <td><span class="${r.verifyResult ? "verify-ok" : "verify-fail"}">${r.verifyResult ? "✅ 通过" : "❌ 未通过"}</span></td>
+              <td style="font-size:0.75rem;white-space:nowrap;">${formatDateTime(r.clockTime)}</td>
+              <td>
+                <div class="cell-actions">
+                  <button onclick="window.app.showClockDetail('${r.id}')">详情</button>
+                  <button class="btn-danger" onclick="window.app.promptDelete('clock','${r.id}','打卡 ${esc(r.name)} ${esc(r.clockTime)}')">删除</button>
+                </div>
+              </td>
+            </tr>
+          `,
+            )
+            .join("")}
+        </tbody>
+      </table>
+    `;
+  }
+
+  showClockDetail(id) {
+    const records = Store.getClockRecords();
+    const r = records.find((c) => c.id === id);
+    if (!r) return;
+    document.getElementById("detailModalTitle").textContent = "打卡详情";
+    document.getElementById("detailModalBody").innerHTML = `
+      <div class="detail-grid">
+        <div class="detail-row"><span class="detail-label">姓名</span><span class="detail-value">${esc(r.name)}</span></div>
+        <div class="detail-row"><span class="detail-label">电话</span><span class="detail-value">${esc(r.phone)}</span></div>
+        <div class="detail-row"><span class="detail-label">公司</span><span class="detail-value">${esc(r.company)}</span></div>
+        <div class="detail-row"><span class="detail-label">公司类型</span><span class="detail-value">${esc(r.companyType) || "-"}</span></div>
+        <div class="detail-row"><span class="detail-label">打卡时间</span><span class="detail-value">${formatDateTime(r.clockTime)}</span></div>
+        <div class="detail-row"><span class="detail-label">打卡位置</span><span class="detail-value">${esc(r.clockLocationName) || "-"}</span></div>
+        <div class="detail-row"><span class="detail-label">位置核验</span><span class="detail-value"><span class="${r.verifyResult ? "verify-ok" : "verify-fail"}">${r.verifyResult ? "✅ 通过" : "❌ 未通过"}</span></span></div>
+        <div class="detail-row"><span class="detail-label">经纬度</span><span class="detail-value">${r.latitude ? r.latitude + ", " + r.longitude : "-"}</span></div>
+        <div class="detail-row"><span class="detail-label">打卡事由</span><span class="detail-value">${esc(r.reason) || "-"}</span></div>
+        <div class="detail-row"><span class="detail-label">备注</span><span class="detail-value">${esc(r.remark) || "-"}</span></div>
+      </div>
+    `;
+    this.openModal("detailModal");
+  }
+
+  // ============ 删除（密码验证） ============
+  promptDelete(type, id, info) {
+    this._deleteTarget = { type, id };
+    document.getElementById("deleteConfirmInfo").textContent =
+      "确定要删除此记录吗？此操作不可恢复。\n记录：" + info;
+    document.getElementById("deletePasswordInput").value = "";
+    document.getElementById("deletePasswordError").style.display = "none";
+    this.openModal("deleteConfirmModal");
+    setTimeout(
+      () => document.getElementById("deletePasswordInput").focus(),
+      100,
+    );
+  }
+
+  async handleDeleteConfirm() {
+    const password = document
+      .getElementById("deletePasswordInput")
+      .value.trim();
+    if (!password) {
+      this.showToast("请输入密码", "error");
+      return;
+    }
+
+    // Verify password by trying to sign in
+    if (this.user && !this.user.isDemo && supabaseClient) {
+      try {
+        const { error } = await supabaseClient.auth.signInWithPassword({
+          email: this.user.email,
+          password: password,
+        });
+        if (error) {
+          document.getElementById("deletePasswordError").style.display =
+            "block";
+          this.showToast("密码错误，删除已取消", "error");
+          return;
+        }
+      } catch (e) {
+        this.showToast("密码验证失败", "error");
+        return;
+      }
+    }
+
+    // Password verified, proceed with delete
+    const target = this._deleteTarget;
+    if (!target) return;
+
+    try {
+      if (target.type === "order") {
+        await this._execDelete("orders", target.id);
+        let orders = Store.getOrders();
+        orders = orders.filter((o) => o.id !== target.id);
+        Store.saveOrders(orders);
+        this.renderOrders();
+      } else if (target.type === "apply") {
+        await this._execDelete("apply_records", target.id);
+        let records = Store.getApplyRecords();
+        records = records.filter((r) => r.id !== target.id);
+        Store.saveApplyRecords(records);
+        this.renderApply();
+      } else if (target.type === "clock") {
+        await this._execDelete("clock_records", target.id);
+        let records = Store.getClockRecords();
+        records = records.filter((r) => r.id !== target.id);
+        Store.saveClockRecords(records);
+        this.renderClock();
+      } else if (target.type === "sample") {
+        await this._execDelete("samples", target.id);
+        var samples = Store.getSamples().filter(function (s) {
+          return s.id !== target.id;
+        });
+        Store.saveSamples(samples);
+        if (this._projectView === "table") {
+          document.getElementById("projectsContainer").className = "";
+          this.renderSampleTable();
+        } else {
+          this.renderProjects();
+        }
+      } else if (target.type === "project") {
+        // 删除类别及其关联的样板（含存储桶中的图片）
+        var id = target.id;
+        var allS = Store.getSamples();
+        allS
+          .filter(function (s) {
+            return s.projectId === id;
+          })
+          .forEach(function (s) {
+            if (s.imageUrl) deleteImageFromStorage(s.imageUrl);
+            if (s.thumbnailUrl) deleteImageFromStorage(s.thumbnailUrl);
+          });
+        await this._execDelete("projects", id);
+        await Store.deleteSamplesByProjectFromDB(id);
+        var projects = Store.getProjects().filter(function (p) {
+          return p.id !== id;
+        });
+        Store.saveProjects(projects);
+        var samples = allS.filter(function (s) {
+          return s.projectId !== id;
+        });
+        Store.saveSamples(samples);
+        this.renderProjects();
+      } else if (target.type === "batchOrders") {
+        // 批量删除订单
+        var ids = target.id; // array
+        for (var bi = 0; bi < ids.length; bi++) {
+          await this._execDelete("orders", ids[bi]);
+        }
+        var orders = Store.getOrders().filter(function (o) {
+          return ids.indexOf(o.id) === -1;
+        });
+        Store.saveOrders(orders);
+        this.renderOrders();
+      } else if (target.type === "batchApply") {
+        var ids = target.id;
+        for (var bi = 0; bi < ids.length; bi++) {
+          await this._execDelete("apply_records", ids[bi]);
+        }
+        var records = Store.getApplyRecords().filter(function (r) {
+          return ids.indexOf(r.id) === -1;
+        });
+        Store.saveApplyRecords(records);
+        this.renderApply();
+      } else if (target.type === "batchClock") {
+        var ids = target.id;
+        for (var bi = 0; bi < ids.length; bi++) {
+          await this._execDelete("clock_records", ids[bi]);
+        }
+        var records = Store.getClockRecords().filter(function (r) {
+          return ids.indexOf(r.id) === -1;
+        });
+        Store.saveClockRecords(records);
+        this.renderClock();
+      }
+      this.closeModal("deleteConfirmModal");
+      document.getElementById("deletePasswordInput").value = "";
+      this.showToast("删除成功", "success");
+    } catch (e) {
+      this.showToast("删除失败: " + e.message, "error");
+    }
+    this._deleteTarget = null;
+  }
+
+  async _execDelete(table, id) {
+    if (!supabaseClient) return;
+    const { error } = await supabaseClient.from(table).delete().eq("id", id);
+    if (error) throw error;
   }
 }
 

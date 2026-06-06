@@ -58,16 +58,19 @@
         <div
           class="sidebar-title"
           onclick="
-            window.app.renderProjects();
-            window.app.showView('projects');
+            window.app.showView('dashboard');
+            window.app.renderDashboard();
           "
         >
           材料样板管理
         </div>
         <nav class="sidebar-nav">
           <span class="sidebar-user" id="sidebarUser"></span>
-          <a href="#" id="navProjects" class="sidebar-link active">类别</a>
+          <button id="navProjects" class="sidebar-link active">类别</button>
           <button id="infoBtn" class="sidebar-link">信息</button>
+          <button id="navOrders" class="sidebar-link">订单管理</button>
+          <button id="navApply" class="sidebar-link">申请管理</button>
+          <button id="navClock" class="sidebar-link">打卡管理</button>
           <button id="logoutBtn" class="sidebar-link sidebar-logout">
             退出
           </button>
@@ -76,10 +79,71 @@
 
       <main class="main-content">
         <div class="container">
+          <div id="dashboardSection" class="page-section">
+            <div class="section-header">
+              <h2>仪表盘</h2>
+            </div>
+            <div id="dashboardContainer"></div>
+          </div>
+
           <div id="projectsSection" class="page-section">
             <div class="section-header">
-              <h2>类别列表</h2>
-              <button id="createProjectBtn" class="btn btn-primary">
+              <h2>类别</h2>
+              <button id="projectRefreshBtn" class="toolbar-btn btn-secondary">
+                ⟳ 刷新
+              </button>
+            </div>
+            <div class="table-filters" id="projectFilters">
+              <input
+                type="text"
+                id="projectSearchInput"
+                placeholder="🔍 搜索编号/品名/品牌..."
+                class="toolbar-input"
+                style="width: 100px"
+              />
+              <select
+                id="projectBrandFilter"
+                class="toolbar-select"
+                style="width: 100px"
+              >
+                <option value="">全部品牌</option>
+              </select>
+              <select
+                id="projectCategoryFilter"
+                class="toolbar-select"
+                style="width: 100px"
+              >
+                <option value="">所属类别</option>
+              </select>
+              <select
+                id="projectProcFilter"
+                class="toolbar-select"
+                style="width: 100px"
+              >
+                <option value="">是否集采</option>
+                <option value="集采">集采</option>
+                <option value="非集采">非集采</option>
+              </select>
+              <select
+                id="projectRangeFilter"
+                class="toolbar-select"
+                style="width: 100px"
+              >
+                <option value="">集采范围</option>
+                <option value="范围内">范围内</option>
+                <option value="范围外">范围外</option>
+              </select>
+              <button id="projectQueryBtn" class="toolbar-btn btn-secondary">
+                查询
+              </button>
+              <span style="flex: 1"></span>
+              <div class="view-toggle" id="projectViewToggle">
+                <button class="toggle-btn active" data-view="cards">
+                  📇 卡片
+                </button>
+                <button class="toggle-btn" data-view="table">📋 列表</button>
+              </div>
+              <button id="createProjectBtn" class="toolbar-btn btn-primary">
                 + 新建类别
               </button>
             </div>
@@ -88,21 +152,37 @@
 
           <div id="samplesSection" class="page-section">
             <div class="section-header">
-              <div>
-                <button class="back-btn" id="backToProjects">← 返回类别</button>
-                <h2 style="margin-top: 8px" id="currentProjectName"></h2>
-              </div>
+              <h2 id="currentProjectName"></h2>
+              <button class="back-btn" id="backToProjects">← 返回类别</button>
+            </div>
+            <div class="table-filters" id="sampleFilters">
+              <input
+                type="text"
+                id="sampleBrandFilter"
+                placeholder="🔍 编号/名称/型号/范围..."
+                autocomplete="off"
+                class="toolbar-input"
+                style="width: 140px"
+              />
+              <span style="flex: 1"></span>
               <div class="btn-group">
-                <button id="selectAllBtn" class="btn btn-secondary">
+                <button id="selectAllBtn" class="toolbar-btn btn-secondary">
                   全选
                 </button>
-                <button id="batchPrintBtn" class="btn btn-secondary" disabled>
+                <button
+                  id="batchPrintBtn"
+                  class="toolbar-btn btn-secondary"
+                  disabled
+                >
                   批量打印
                 </button>
-                <button id="editProjectSampleBtn" class="btn btn-secondary">
+                <button
+                  id="editProjectSampleBtn"
+                  class="toolbar-btn btn-secondary"
+                >
                   编辑类别
                 </button>
-                <button id="createSampleBtn" class="btn btn-primary">
+                <button id="createSampleBtn" class="toolbar-btn btn-primary">
                   + 录入样板
                 </button>
               </div>
@@ -135,6 +215,182 @@
               <h2>信息</h2>
             </div>
             <div id="infoContainer"></div>
+          </div>
+
+          <div id="ordersSection" class="page-section">
+            <div class="section-header">
+              <h2>订单管理</h2>
+              <button id="refreshOrdersBtn" class="toolbar-btn btn-secondary">
+                ⟳ 刷新
+              </button>
+            </div>
+            <div class="table-filters">
+              <input
+                type="text"
+                id="orderSearchInput"
+                placeholder="订单号"
+                autocomplete="off"
+                class="toolbar-input"
+                style="width: 100px"
+              />
+              <select
+                id="orderStatusFilter"
+                class="toolbar-select"
+                style="width: 100px"
+              >
+                <option value="">全部状态</option>
+                <option value="未提交">未提交</option>
+                <option value="已收录">已收录</option>
+              </select>
+              <input
+                type="date"
+                id="orderDateStart"
+                class="toolbar-date"
+                style="width: 100px"
+              />
+              <input
+                type="date"
+                id="orderDateEnd"
+                class="toolbar-date"
+                style="width: 100px"
+              />
+              <button id="orderQueryBtn" class="toolbar-btn btn-secondary">
+                查询
+              </button>
+              <span style="flex: 1"></span>
+              <button id="createOrderBtn" class="toolbar-btn btn-primary">
+                + 录入
+              </button>
+              <button id="selectAllOrders" class="toolbar-btn btn-secondary">
+                全选
+              </button>
+              <button id="batchDeleteOrdersBtn" class="toolbar-btn btn-danger">
+                批量删除
+              </button>
+            </div>
+            <div id="ordersContainer"></div>
+          </div>
+
+          <div id="applySection" class="page-section">
+            <div class="section-header">
+              <h2>申请管理</h2>
+              <button id="refreshApplyBtn" class="toolbar-btn btn-secondary">
+                ⟳ 刷新
+              </button>
+            </div>
+            <div class="table-filters">
+              <input
+                type="text"
+                id="applySearchInput"
+                placeholder="申请人"
+                autocomplete="off"
+                class="toolbar-input"
+                style="width: 100px"
+              />
+              <select
+                id="applyTypeFilter"
+                class="toolbar-select"
+                style="width: 100px"
+              >
+                <option value="">全部事由</option>
+                <option value="运输">运输</option>
+                <option value="参观">参观</option>
+                <option value="选样">选样</option>
+                <option value="借还">借还</option>
+                <option value="其他">其他</option>
+              </select>
+              <select
+                id="applyStatusFilter"
+                class="toolbar-select"
+                style="width: 100px"
+              >
+                <option value="">全部状态</option>
+                <option value="待审核">待审核</option>
+                <option value="已收录">已收录</option>
+              </select>
+              <input
+                type="date"
+                id="applyDateStart"
+                class="toolbar-date"
+                style="width: 100px"
+              />
+              <input
+                type="date"
+                id="applyDateEnd"
+                class="toolbar-date"
+                style="width: 100px"
+              />
+              <button id="applyQueryBtn" class="toolbar-btn btn-secondary">
+                查询
+              </button>
+              <span style="flex: 1"></span>
+              <button id="createApplyBtn" class="toolbar-btn btn-primary">
+                + 录入
+              </button>
+              <button id="selectAllApply" class="toolbar-btn btn-secondary">
+                全选
+              </button>
+              <button id="batchDeleteApplyBtn" class="toolbar-btn btn-danger">
+                批量删除
+              </button>
+            </div>
+            <div id="applyContainer"></div>
+          </div>
+
+          <div id="clockSection" class="page-section">
+            <div class="section-header">
+              <h2>打卡管理</h2>
+              <button id="refreshClockBtn" class="toolbar-btn btn-secondary">
+                ⟳ 刷新
+              </button>
+            </div>
+            <div class="table-filters">
+              <input
+                type="text"
+                id="clockSearchInput"
+                placeholder="姓名"
+                autocomplete="off"
+                class="toolbar-input"
+                style="width: 100px"
+              />
+              <select
+                id="clockCompanyTypeFilter"
+                class="toolbar-select"
+                style="width: 100px"
+              >
+                <option value="">全部类型</option>
+                <option value="业主方">业主方</option>
+                <option value="运营方">运营方</option>
+                <option value="品牌方">品牌方</option>
+                <option value="其他">其他</option>
+              </select>
+              <input
+                type="date"
+                id="clockDateStart"
+                class="toolbar-date"
+                style="width: 100px"
+              />
+              <input
+                type="date"
+                id="clockDateEnd"
+                class="toolbar-date"
+                style="width: 100px"
+              />
+              <button id="clockQueryBtn" class="toolbar-btn btn-secondary">
+                查询
+              </button>
+              <span style="flex: 1"></span>
+              <button id="createClockBtn" class="toolbar-btn btn-primary">
+                + 录入
+              </button>
+              <button id="selectAllClock" class="toolbar-btn btn-secondary">
+                全选
+              </button>
+              <button id="batchDeleteClockBtn" class="toolbar-btn btn-danger">
+                批量删除
+              </button>
+            </div>
+            <div id="clockContainer"></div>
           </div>
         </div>
       </main>
@@ -186,9 +442,14 @@
             <div class="form-row" id="procTimeRow" style="display: none">
               <div class="form-group">
                 <div class="select-group">
-                  <select id="procStartYear">
-                    <option value="">开始年</option>
-                  </select>
+                  <input
+                    type="text"
+                    id="procStartYear"
+                    placeholder="开始年"
+                    maxlength="4"
+                    class="proj-select"
+                    style="width: 80px"
+                  />
                   <select id="procStartMonth">
                     <option value="">月</option>
                   </select>
@@ -196,9 +457,14 @@
               </div>
               <div class="form-group">
                 <div class="select-group">
-                  <select id="procEndYear">
-                    <option value="">结束年</option>
-                  </select>
+                  <input
+                    type="text"
+                    id="procEndYear"
+                    placeholder="结束年"
+                    maxlength="4"
+                    class="proj-select"
+                    style="width: 80px"
+                  />
                   <select id="procEndMonth">
                     <option value="">月</option>
                   </select>
@@ -431,6 +697,74 @@
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 删除确认弹窗 -->
+    <div class="modal-overlay" id="deleteConfirmModal">
+      <div class="modal" style="max-width: 400px">
+        <div class="modal-header">
+          <h3>确认删除</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <p
+            id="deleteConfirmInfo"
+            style="
+              margin-bottom: 12px;
+              font-size: 0.85rem;
+              color: var(--text-secondary);
+            "
+          ></p>
+          <div class="form-group">
+            <input
+              type="password"
+              id="deletePasswordInput"
+              placeholder="请输入登录密码确认"
+              style="width: 100%"
+            />
+          </div>
+          <div
+            id="deletePasswordError"
+            style="
+              color: var(--danger);
+              font-size: 0.78rem;
+              display: none;
+              margin-top: 4px;
+            "
+          >
+            密码错误，删除已取消
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="cancelDeleteBtn" class="btn btn-secondary">
+            取消
+          </button>
+          <button
+            type="button"
+            id="confirmDeleteBtn"
+            class="btn btn-primary"
+            style="background: var(--danger)"
+          >
+            确认删除
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 详情弹窗 -->
+    <div class="modal-overlay" id="detailModal">
+      <div class="modal" style="max-width: 560px">
+        <div class="modal-header">
+          <h3 id="detailModalTitle">详情</h3>
+          <button class="modal-close">&times;</button>
+        </div>
+        <div class="modal-body" id="detailModalBody"></div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary modal-close">
+            关闭
+          </button>
         </div>
       </div>
     </div>
