@@ -397,25 +397,40 @@
 
         function loadMpLaunchBtn() {
           if (!supabaseClient) return;
-          supabaseClient
-            .from("settings")
-            .select("value")
-            .eq("key", "miniprogramScheme")
-            .maybeSingle()
-            .then(function (res) {
-              if (
-                !res.error &&
-                res.data &&
-                res.data.value &&
-                res.data.value.openlink
-              ) {
-                var container = document.getElementById("mpLaunch");
-                var btn = document.getElementById("mpLaunchBtn");
-                btn.href = res.data.value.openlink;
-                container.style.display = "block";
-              }
-            })
-            .catch(function () {});
+          var retries = 0;
+          var maxRetries = 3;
+
+          function fetchScheme() {
+            supabaseClient
+              .from("settings")
+              .select("value")
+              .eq("key", "miniprogramScheme")
+              .maybeSingle()
+              .then(function (res) {
+                if (
+                  !res.error &&
+                  res.data &&
+                  res.data.value &&
+                  res.data.value.openlink
+                ) {
+                  var container = document.getElementById("mpLaunch");
+                  var btn = document.getElementById("mpLaunchBtn");
+                  btn.href = res.data.value.openlink;
+                  container.style.display = "block";
+                } else if (retries < maxRetries) {
+                  retries++;
+                  setTimeout(fetchScheme, 3000);
+                }
+              })
+              .catch(function () {
+                if (retries < maxRetries) {
+                  retries++;
+                  setTimeout(fetchScheme, 3000);
+                }
+              });
+          }
+
+          fetchScheme();
         }
 
         if (sample) {
