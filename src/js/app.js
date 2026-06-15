@@ -43,6 +43,12 @@ const STORAGE_KEYS = {
   orders: "easycod_orders",
   applyRecords: "easycod_apply_records",
   clockRecords: "easycod_clock_records",
+  approvalUsers: "easycod_approval_users",
+  workflowTemplates: "easycod_wf_templates",
+  workflowNodes: "easycod_wf_nodes",
+  workflowAssignees: "easycod_wf_node_assignees",
+  approvalRecords: "easycod_approval_records",
+  approvalLogs: "easycod_approval_logs",
 };
 
 const DEFAULT_FIELD_VISIBILITY = {
@@ -687,11 +693,10 @@ class Store {
     Store.set(STORAGE_KEYS.orders, orders);
   }
   static async loadOrdersFromDB() {
-    if (!supabaseClient || !window.app?.user?.id) return;
+    if (!supabaseClient) return;
     const { data, error } = await supabaseClient
       .from("orders")
       .select("*")
-      .eq("user_id", window.app.user.id)
       .order("created_at", { ascending: false });
     if (error) throw error;
     Store.set(
@@ -707,11 +712,10 @@ class Store {
     Store.set(STORAGE_KEYS.applyRecords, records);
   }
   static async loadApplyFromDB() {
-    if (!supabaseClient || !window.app?.user?.id) return;
+    if (!supabaseClient) return;
     const { data, error } = await supabaseClient
       .from("apply_records")
       .select("*")
-      .eq("user_id", window.app.user.id)
       .order("created_at", { ascending: false });
     if (error) throw error;
     Store.set(
@@ -727,17 +731,135 @@ class Store {
     Store.set(STORAGE_KEYS.clockRecords, records);
   }
   static async loadClockFromDB() {
-    if (!supabaseClient || !window.app?.user?.id) return;
+    if (!supabaseClient) return;
     const { data, error } = await supabaseClient
       .from("clock_records")
       .select("*")
-      .eq("user_id", window.app.user.id)
       .order("clock_time", { ascending: false });
     if (error) throw error;
     Store.set(
       STORAGE_KEYS.clockRecords,
       data && data.length > 0 ? data.map(fromSnakeCase) : [],
     );
+  }
+
+  // ===== 审批人缓存 =====
+  static getApprovalUsers() {
+    return Store.get(STORAGE_KEYS.approvalUsers) || [];
+  }
+  static saveApprovalUsers(users) {
+    Store.set(STORAGE_KEYS.approvalUsers, users);
+  }
+  static async loadApprovalUsersFromDB() {
+    if (!supabaseClient) return;
+    const { data, error } = await supabaseClient
+      .from("ep_users")
+      .select(
+        "id,username,display_name,email,role,is_active,created_at,last_login",
+      )
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    Store.saveApprovalUsers(data || []);
+  }
+
+  // ===== 流程数据缓存 =====
+  static getWfTemplates() {
+    return Store.get(STORAGE_KEYS.workflowTemplates) || [];
+  }
+  static saveWfTemplates(tpls) {
+    Store.set(STORAGE_KEYS.workflowTemplates, tpls);
+  }
+  static async loadWfTemplatesFromDB() {
+    if (!supabaseClient) return;
+    const { data, error } = await supabaseClient
+      .from("ep_workflow_templates")
+      .select("*")
+      .order("apply_type");
+    if (error) throw error;
+    Store.saveWfTemplates(data || []);
+  }
+
+  static getWfNodes() {
+    return Store.get(STORAGE_KEYS.workflowNodes) || [];
+  }
+  static saveWfNodes(nodes) {
+    Store.set(STORAGE_KEYS.workflowNodes, nodes);
+  }
+  static async loadWfNodesFromDB() {
+    if (!supabaseClient) return;
+    const { data, error } = await supabaseClient
+      .from("ep_workflow_nodes")
+      .select("*")
+      .order("order_index");
+    if (error) throw error;
+    Store.saveWfNodes(data || []);
+  }
+
+  static getWfAssignees() {
+    return Store.get(STORAGE_KEYS.workflowAssignees) || [];
+  }
+  static saveWfAssignees(as2) {
+    Store.set(STORAGE_KEYS.workflowAssignees, as2);
+  }
+  static async loadWfAssigneesFromDB() {
+    if (!supabaseClient) return;
+    const { data, error } = await supabaseClient
+      .from("ep_workflow_node_assignees")
+      .select("node_id,user_id");
+    if (error) throw error;
+    Store.saveWfAssignees(data || []);
+  }
+
+  static async loadAllWorkflowData() {
+    if (!supabaseClient) return;
+    await Promise.all([
+      Store.loadWfTemplatesFromDB(),
+      Store.loadWfNodesFromDB(),
+      Store.loadWfAssigneesFromDB(),
+    ]);
+  }
+
+  // ===== 审批记录缓存 =====
+  static getApprovalRecords() {
+    return Store.get(STORAGE_KEYS.approvalRecords) || [];
+  }
+  static saveApprovalRecords(records) {
+    Store.set(STORAGE_KEYS.approvalRecords, records);
+  }
+  static async loadApprovalRecordsFromDB() {
+    if (!supabaseClient) return;
+    const { data, error } = await supabaseClient
+      .from("ep_approvals")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    Store.saveApprovalRecords(data || []);
+  }
+
+  static getApprovalLogs() {
+    return Store.get(STORAGE_KEYS.approvalLogs) || [];
+  }
+  static saveApprovalLogs(logs) {
+    Store.set(STORAGE_KEYS.approvalLogs, logs);
+  }
+  static async loadApprovalLogsFromDB() {
+    if (!supabaseClient) return;
+    const { data, error } = await supabaseClient
+      .from("ep_approval_logs")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (error) throw error;
+    Store.saveApprovalLogs(data || []);
+  }
+
+  static async loadAllApprovalData() {
+    if (!supabaseClient) return;
+    await Promise.all([
+      Store.loadApprovalUsersFromDB(),
+      Store.loadAllWorkflowData(),
+      Store.loadApprovalRecordsFromDB(),
+      Store.loadApprovalLogsFromDB(),
+    ]);
   }
 
   static async loadProjectsFromDB() {
@@ -903,6 +1025,7 @@ class App {
     this.currentView = "login";
     this.currentProjectId = null;
     this.selectedSamples = new Set();
+    this.selectedLabels = { label1: true, label2: true, label3: true };
     this._projectView = "cards";
     this.init();
   }
@@ -947,10 +1070,6 @@ class App {
     this.currentView = "login";
     document.getElementById("loginSection").classList.add("active");
     document.getElementById("appSection").classList.remove("active");
-    const demoBtn = document.getElementById("demoLoginBtn");
-    if (demoBtn) {
-      demoBtn.style.display = DEMO_MODE ? "" : "none";
-    }
   }
 
   async showApp() {
@@ -967,11 +1086,12 @@ class App {
           Store.loadProjectsFromDB(),
           Store.loadSamplesFromDB(),
         ]);
-        // 2. 后台静默加载其他表
+        // 2. 后台静默加载其他表（含审批相关数据）
         Promise.all([
           Store.loadOrdersFromDB(),
           Store.loadApplyFromDB(),
           Store.loadClockFromDB(),
+          Store.loadAllApprovalData(),
         ]).catch(function (e2) {
           console.warn("silent load failed:", e2);
         });
@@ -1009,6 +1129,10 @@ class App {
       orders: "ordersSection",
       apply: "applySection",
       clock: "clockSection",
+      approvalUsers: "approvalUsersSection",
+      workflows: "workflowSection",
+      approvalRecords: "approvalRecordsSection",
+      voiceAssistant: "voiceAssistantSection",
     };
     const sectionId = sectionMap[view];
     if (sectionId) {
@@ -1027,6 +1151,14 @@ class App {
       document.getElementById("navApply").classList.add("active");
     } else if (view === "clock") {
       document.getElementById("navClock").classList.add("active");
+    } else if (view === "approvalUsers") {
+      document.getElementById("navApprovalUsers").classList.add("active");
+    } else if (view === "workflows") {
+      document.getElementById("navWorkflows").classList.add("active");
+    } else if (view === "approvalRecords") {
+      document.getElementById("navApprovalRecords").classList.add("active");
+    } else if (view === "voiceAssistant") {
+      document.getElementById("navVoiceAssistant").classList.add("active");
     } else if (view === "dashboard") {
       document.querySelector(".sidebar-title").classList.add("active");
     }
@@ -1047,10 +1179,6 @@ class App {
         .querySelectorAll(".vis-pill-btn")
         .forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
-    });
-
-    document.getElementById("demoLoginBtn").addEventListener("click", () => {
-      this.handleDemoLogin();
     });
 
     document.getElementById("logoutBtn").addEventListener("click", () => {
@@ -1254,8 +1382,24 @@ class App {
     });
 
     document.getElementById("batchPrintBtn").addEventListener("click", () => {
-      this.batchPrint();
+      this.showLabelTypeModal();
     });
+
+    document
+      .getElementById("labelTypeConfirm")
+      .addEventListener("click", () => {
+        this.confirmLabelTypePrint();
+      });
+
+    document.getElementById("labelTypeCancel").addEventListener("click", () => {
+      this.closeModal("labelTypeModal");
+    });
+
+    document
+      .getElementById("labelTypeModalClose")
+      .addEventListener("click", () => {
+        this.closeModal("labelTypeModal");
+      });
 
     document.getElementById("selectAllBtn").addEventListener("click", () => {
       this.selectAllSamples();
@@ -1384,6 +1528,83 @@ class App {
       this.showView("clock");
     });
 
+    document
+      .getElementById("navApprovalUsers")
+      .addEventListener("click", () => {
+        this.renderApprovalUsers();
+        this.showView("approvalUsers");
+      });
+    document.getElementById("navWorkflows").addEventListener("click", () => {
+      this.renderWorkflows();
+      this.showView("workflows");
+    });
+    document
+      .getElementById("navApprovalRecords")
+      .addEventListener("click", () => {
+        this.renderApprovalRecords();
+        this.showView("approvalRecords");
+      });
+
+    document.getElementById("navVoiceAssistant").addEventListener("click", () => {
+      this.renderVoiceAssistantView();
+      this.showView("voiceAssistant");
+    });
+
+    // 语音助手 - 多标签切换
+    const vaTabs = {
+      vaTabKnowledge: "vaKnowledgeContainer",
+      vaTabPersonality: "vaPersonalityContainer",
+      vaTabBehavior: "vaBehaviorContainer",
+      vaTabVerification: "vaVerificationContainer",
+      vaTabPrecipRules: "vaPrecipRulesContainer",
+      vaTabMemory: "vaMemoryContainer",
+      vaTabErrors: "vaErrorsContainer",
+      vaTabEmotion: "vaEmotionContainer",
+      vaTabLogs: "vaLogsContainer",
+      vaTabFunctions: "vaFunctionsContainer",
+      vaTabInstincts: "vaInstinctsContainer",
+    };
+    const vaTabIds = Object.keys(vaTabs);
+    const vaRenderMap = {
+      vaTabKnowledge: () => this.renderVAKnowledge(),
+      vaTabPersonality: () => this.renderVAPersonality(),
+      vaTabBehavior: () => this.renderVABehavior(),
+      vaTabVerification: () => this.renderVAVerification(),
+      vaTabPrecipRules: () => this.renderVAPrecipRules(),
+      vaTabMemory: () => this.renderVAMemory(),
+      vaTabErrors: () => this.renderVAErrors(),
+      vaTabEmotion: () => this.renderVAEmotion(),
+      vaTabLogs: () => this.renderVALogs(),
+      vaTabFunctions: () => this.renderVAFunctions(),
+      vaTabInstincts: () => this.renderVAInstincts(),
+    };
+    for (const tabId of vaTabIds) {
+      document.getElementById(tabId).addEventListener("click", () => {
+        for (const tid of vaTabIds) {
+          document.getElementById(tid).className = "toolbar-btn btn-secondary";
+        }
+        document.getElementById(tabId).className = "toolbar-btn btn-primary";
+        for (const [tId, containerId] of Object.entries(vaTabs)) {
+          document.getElementById(containerId).style.display = tId === tabId ? "" : "none";
+        }
+        if (vaRenderMap[tabId]) vaRenderMap[tabId]();
+      });
+    }
+
+    // 每日沉淀
+    document.getElementById("vaDailySummary").addEventListener("click", () => {
+      this.runVADailySummary();
+    });
+
+    // 刷新：重渲当前可见标签
+    document.getElementById("vaRefreshBtn").addEventListener("click", () => {
+      const activeTabId = vaTabIds.find((tid) => document.getElementById(vaTabs[tid]).style.display !== "none");
+      if (activeTabId && vaRenderMap[activeTabId]) {
+        vaRenderMap[activeTabId]();
+      }
+      this.showToast("已刷新", "success");
+    });
+
     // 刷新按钮
     document
       .getElementById("refreshOrdersBtn")
@@ -1422,6 +1643,44 @@ class App {
         }
       });
 
+    document
+      .getElementById("refreshApprovalUsersBtn")
+      .addEventListener("click", async () => {
+        if (!supabaseClient) return;
+        try {
+          await Store.loadApprovalUsersFromDB();
+        } catch (e) {
+          /* silent */
+        }
+        this.renderApprovalUsers();
+        this.showToast("数据已刷新", "success");
+      });
+    document
+      .getElementById("refreshApprovalRecordsBtn")
+      .addEventListener("click", async () => {
+        if (!supabaseClient) return;
+        try {
+          await Store.loadApprovalRecordsFromDB();
+        } catch (e) {
+          /* silent */
+        }
+        this.renderApprovalRecords();
+        this.showToast("数据已刷新", "success");
+      });
+    const refreshWfBtn = document.getElementById("refreshWorkflowsBtn");
+    if (refreshWfBtn) {
+      refreshWfBtn.addEventListener("click", async () => {
+        if (!supabaseClient) return;
+        try {
+          await Store.loadAllWorkflowData();
+        } catch (e) {
+          /* silent */
+        }
+        this.renderWorkflows();
+        this.showToast("数据已刷新", "success");
+      });
+    }
+
     // 录入按钮
     var createOrderBtn = document.getElementById("createOrderBtn");
     if (createOrderBtn)
@@ -1437,6 +1696,12 @@ class App {
     if (createClockBtn)
       createClockBtn.addEventListener("click", function () {
         window.app.showClockEntry();
+      });
+
+    document
+      .getElementById("addApprovalUserBtn")
+      .addEventListener("click", () => {
+        this.showApprovalUserModal();
       });
 
     // Order filter
@@ -1844,6 +2109,7 @@ class App {
     await Store.loadProjectsFromDB();
     await Store.loadSamplesFromDB();
     Store.loadFieldVisibilityFromDB();
+    Store.loadAllApprovalData().catch(() => {});
     this.renderProjects();
   }
 
@@ -2074,6 +2340,14 @@ class App {
     var projects = Store.getProjects() || [];
     var container = document.getElementById("projectsContainer");
 
+    // Build maps (必须先构建，后续搜索过滤需要用到)
+    var projectMap = {};
+    var projectProcMap = {};
+    projects.forEach(function (p) {
+      projectMap[p.id] = p.name;
+      projectProcMap[p.id] = p.procurement;
+    });
+
     // 实时搜索过滤（编号/名称/型号/品牌/品类/集采/范围）
     var searchTerm = (this._projectSearch || "").toLowerCase();
     if (searchTerm) {
@@ -2094,14 +2368,6 @@ class App {
         );
       });
     }
-
-    // Build maps
-    var projectMap = {};
-    var projectProcMap = {};
-    projects.forEach(function (p) {
-      projectMap[p.id] = p.name;
-      projectProcMap[p.id] = p.procurement;
-    });
 
     if (samples.length === 0) {
       container.innerHTML = '<div class="empty-table">暂无样板数据</div>';
@@ -3087,6 +3353,12 @@ class App {
       .filter(Boolean)
       .join("-");
     const badgeInfo = getProcurementIndicator(sample, project);
+    const dividerColor =
+      badgeInfo.cls === "proc-in"
+        ? "#2ecc40"
+        : badgeInfo.cls === "proc-out"
+          ? "#ffdc00"
+          : "#ff4136";
     const color = hashToColor(sample.code || "");
     modal.innerHTML = `
       <div class="print-label-wrap">
@@ -3137,12 +3409,27 @@ class App {
         <div class="capsule-circle" style="background:${color}"></div>
         <div class="capsule-code">${capsuleText}</div>
       </div>
+      <div class="print-label-extra">
+        <div class="extra-qr">
+          <canvas id="extraQrCode" width="70" height="70"></canvas>
+        </div>
+        <div class="extra-divider" style="background:${dividerColor}"></div>
+        <div class="extra-info">
+          <div class="extra-info-line"><span class="extra-label">品牌：</span>${sample.brand || "-"}</div>
+          <div class="extra-info-line"><span class="extra-label">型号：</span>${sample.model || "-"}</div>
+          <div class="extra-info-line"><span class="extra-label">编号：</span>${sample.code || "-"}</div>
+        </div>
+      </div>
       </div>`;
 
     setTimeout(() => {
       const canvas = document.getElementById("modalQrCode");
       if (canvas) {
         drawQRCode(canvas, qrUrl);
+      }
+      const extraCanvas = document.getElementById("extraQrCode");
+      if (extraCanvas) {
+        drawQRCode(extraCanvas, qrUrl);
       }
       const label = modal.querySelector(".print-label-wrap");
       if (label) {
@@ -3209,9 +3496,18 @@ class App {
           .join("-");
         const badgeInfo = getProcurementIndicator(sample, project);
         const color = hashToColor(sample.code || "");
+        const dividerColor =
+          badgeInfo.cls === "proc-in"
+            ? "#2ecc40"
+            : badgeInfo.cls === "proc-out"
+              ? "#ffdc00"
+              : "#ff4136";
 
         return `
         <div class="print-label-wrap" data-id="${sample.id}">
+        ${
+          this.selectedLabels.label1
+            ? `
         <div class="print-label">
           <div class="print-label-category">${project ? project.name : ""}<span class="proc-badge ${badgeInfo.cls}"></span></div>
           <div class="print-label-header">${sample.name}</div>
@@ -3255,10 +3551,24 @@ class App {
             <canvas id="${canvasId}" width="80" height="80"></canvas>
           </div>
         </div>
+        `
+            : ""
+        }
+        ${
+          this.selectedLabels.label2
+            ? `
         <div class="print-label-capsule">
           <div class="capsule-circle" style="background:${color}"></div>
           <div class="capsule-code">${capsuleText}</div>
         </div>
+        `
+            : ""
+        }
+        ${
+          this.selectedLabels.label3
+            ? this.renderLabelExtra(sample, project, dividerColor, badgeInfo)
+            : ""
+        }
         </div>
       `;
       })
@@ -3268,6 +3578,12 @@ class App {
       const canvas = document.getElementById(`qr-${sample.id}`);
       if (canvas) {
         drawQRCode(canvas, qrPageUrl(sample.id));
+      }
+      if (this.selectedLabels.label3) {
+        const extraCanvas = document.getElementById(`extraQr-${sample.id}`);
+        if (extraCanvas) {
+          drawQRCode(extraCanvas, qrPageUrl(sample.id));
+        }
       }
     });
 
@@ -3288,10 +3604,46 @@ class App {
     container.addEventListener("click", dismissLabels);
   }
 
+  showLabelTypeModal() {
+    document.getElementById("labelType1").checked =
+      this.selectedLabels.label1 !== false;
+    document.getElementById("labelType2").checked =
+      this.selectedLabels.label2 !== false;
+    document.getElementById("labelType3").checked =
+      this.selectedLabels.label3 !== false;
+    this.openModal("labelTypeModal");
+  }
+
+  confirmLabelTypePrint() {
+    this.selectedLabels = {
+      label1: document.getElementById("labelType1").checked,
+      label2: document.getElementById("labelType2").checked,
+      label3: document.getElementById("labelType3").checked,
+    };
+    this.closeModal("labelTypeModal");
+    this.batchPrint();
+  }
+
   batchPrint() {
     this.renderLabels();
     this.showView("labels");
     setTimeout(() => window.print(), 500);
+  }
+
+  renderLabelExtra(sample, project, dividerColor) {
+    const extraId = `extraQr-${sample.id}`;
+    return `
+    <div class="print-label-extra">
+      <div class="extra-qr">
+        <canvas id="${extraId}" width="70" height="70"></canvas>
+      </div>
+      <div class="extra-divider" style="background:${dividerColor}"></div>
+      <div class="extra-info">
+        <div class="extra-info-line"><span class="extra-label">品牌：</span>${sample.brand || "-"}</div>
+        <div class="extra-info-line"><span class="extra-label">型号：</span>${sample.model || "-"}</div>
+        <div class="extra-info-line"><span class="extra-label">编号：</span>${sample.code || "-"}</div>
+      </div>
+    </div>`;
   }
 
   renderInfoView() {
@@ -4376,10 +4728,16 @@ class App {
         this.renderOrders();
       } else if (target.type === "apply") {
         await this._execDelete("apply_records", target.id);
+        // 级联删除关联的审批记录
+        await supabaseClient
+          .from("ep_approvals")
+          .delete()
+          .eq("apply_record_id", target.id);
         let records = Store.getApplyRecords();
         records = records.filter((r) => r.id !== target.id);
         Store.saveApplyRecords(records);
         this.renderApply();
+        Store.loadApprovalRecordsFromDB();
       } else if (target.type === "clock") {
         await this._execDelete("clock_records", target.id);
         let records = Store.getClockRecords();
@@ -4437,11 +4795,17 @@ class App {
         for (var bi = 0; bi < ids.length; bi++) {
           await this._execDelete("apply_records", ids[bi]);
         }
+        // 级联删除关联的审批记录
+        await supabaseClient
+          .from("ep_approvals")
+          .delete()
+          .in("apply_record_id", ids);
         var records = Store.getApplyRecords().filter(function (r) {
           return ids.indexOf(r.id) === -1;
         });
         Store.saveApplyRecords(records);
         this.renderApply();
+        Store.loadApprovalRecordsFromDB();
       } else if (target.type === "batchClock") {
         var ids = target.id;
         for (var bi = 0; bi < ids.length; bi++) {
@@ -4452,6 +4816,28 @@ class App {
         });
         Store.saveClockRecords(records);
         this.renderClock();
+      } else if (target.type === "vaChatLog") {
+        await this._execDelete("ev_chat_logs", target.id);
+        this.renderVALogs();
+      } else if (target.type === "batchVaChatLog") {
+        var ids = target.id;
+        await supabaseClient.from("ev_chat_logs").delete().in("id", ids);
+        this.renderVALogs();
+      } else if (target.type === "vaPersonality") {
+        await this._execDelete("ev_personality", target.id);
+        this.renderVAPersonality();
+      } else if (target.type === "vaBehavior") {
+        await this._execDelete("ev_behavior", target.id);
+        this.renderVABehavior();
+      } else if (target.type === "vaVerification") {
+        await this._execDelete("ev_verification", target.id);
+        this.renderVAVerification();
+      } else if (target.type === "vaPrecipRules") {
+        await this._execDelete("ev_precipitation_rules", target.id);
+        this.renderVAPrecipRules();
+      } else if (target.type === "vaFunction") {
+        await this._execDelete("ev_functions", target.id);
+        this.renderVAFunctions();
       }
       this.closeModal("deleteConfirmModal");
       document.getElementById("deletePasswordInput").value = "";
@@ -4466,6 +4852,2317 @@ class App {
     if (!supabaseClient) return;
     const { error } = await supabaseClient.from(table).delete().eq("id", id);
     if (error) throw error;
+  }
+
+  // ============ 审批人管理 ============
+
+  async renderApprovalUsers() {
+    const container = document.getElementById("approvalUsersContainer");
+    if (!supabaseClient) {
+      container.innerHTML =
+        '<div class="empty-state"><p>数据库未连接</p></div>';
+      return;
+    }
+    try {
+      var users = Store.getApprovalUsers();
+      if (users.length === 0) {
+        await Store.loadApprovalUsersFromDB();
+        users = Store.getApprovalUsers();
+      }
+      if (users.length === 0) {
+        container.innerHTML =
+          '<div class="empty-state"><div class="icon"><img src="src/icon/box.svg" alt="empty" class="empty-icon"></div><p>暂无审批人，点击"添加审批人"开始配置</p></div>';
+        return;
+      }
+      container.innerHTML = `<table class="data-table" style="width:100%"><thead><tr>
+        <th>用户名</th><th>显示名称</th><th>邮箱</th><th>角色</th><th>状态</th><th>创建时间</th><th>操作</th>
+      </tr></thead><tbody>${users
+        .map(
+          (u) => `<tr>
+        <td>${this._esc(u.username)}</td>
+        <td>${this._esc(u.display_name || "")}</td>
+        <td style="font-size:0.85rem">${this._esc(u.email || "")}</td>
+        <td><span class="status-badge ${u.role === "admin" ? "status-success" : "status-info"}">${this._esc(u.role || "审批人")}</span></td>
+        <td><span class="status-badge ${u.is_active ? "status-success" : "status-error"}" style="cursor:pointer" data-id="${u.id}" data-active="${u.is_active ? "1" : "0"}">${u.is_active ? "启用" : "停用"}</span></td>
+        <td style="font-size:0.8rem;color:var(--text-light)">${u.created_at ? this._fmtDT(u.created_at) : "-"}</td>
+        <td><button class="btn btn-sm btn-ghost edit-ep-user" data-id="${u.id}" style="margin-right:4px">编辑</button><button class="btn btn-sm btn-ghost delete-ep-user" data-id="${u.id}" style="color:var(--danger)">删除</button></td>
+      </tr>`,
+        )
+        .join("")}</tbody></table>`;
+
+      container.querySelectorAll(".edit-ep-user").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const u = users.find((x) => x.id === btn.dataset.id);
+          if (u) this.showApprovalUserModal(u);
+        });
+      });
+      container.querySelectorAll(".delete-ep-user").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          if (!confirm("确定删除该审批人？")) return;
+          const { error: e } = await supabaseClient
+            .from("ep_users")
+            .delete()
+            .eq("id", btn.dataset.id);
+          if (e) {
+            this.showToast("删除失败: " + e.message, "error");
+            return;
+          }
+          this.showToast("已删除", "success");
+          // 更新缓存
+          await Store.loadApprovalUsersFromDB();
+          this.renderApprovalUsers();
+        });
+      });
+      container.querySelectorAll("[data-active]").forEach((el) => {
+        el.addEventListener("click", async () => {
+          const id = el.dataset.id;
+          const nowActive = el.dataset.active === "1" ? false : true;
+          const { error: e } = await supabaseClient
+            .from("ep_users")
+            .update({ is_active: nowActive })
+            .eq("id", id);
+          if (e) {
+            this.showToast("更新失败", "error");
+            return;
+          }
+          await Store.loadApprovalUsersFromDB();
+          this.renderApprovalUsers();
+        });
+      });
+    } catch (e) {
+      container.innerHTML =
+        '<div class="empty-state"><p>加载失败: ' + e.message + "</p></div>";
+    }
+  }
+
+  showApprovalUserModal(data) {
+    const isEdit = !!data;
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay active";
+    overlay.innerHTML = `<div class="modal" style="max-width:460px"><div class="modal-header"><h3>${isEdit ? "编辑审批人" : "添加审批人"}</h3><button class="modal-close">&times;</button></div>
+      <form id="epUserForm"><div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+        <input type="text" id="epUserUsername" class="toolbar-input" placeholder="用户名 *" value="${isEdit ? this._esc(data.username) : ""}" required style="width:100%">
+        <input type="text" id="epUserDisplayName" class="toolbar-input" placeholder="显示名称 *" value="${isEdit ? this._esc(data.display_name || "") : ""}" required style="width:100%">
+        <input type="email" id="epUserEmail" class="toolbar-input" placeholder="邮箱" value="${isEdit ? this._esc(data.email || "") : ""}" style="width:100%">
+        <select id="epUserRole" class="toolbar-select" style="width:100%"><option value="审批人" ${isEdit && data.role === "审批人" ? "selected" : ""}>审批人</option><option value="admin" ${isEdit && data.role === "admin" ? "selected" : ""}>管理员</option></select>
+        ${!isEdit ? '<input type="password" id="epUserPassword" class="toolbar-input" placeholder="密码 *" required style="width:100%">' : ""}
+      </div><div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--border)"><button type="button" class="btn btn-secondary modal-close-btn">取消</button><button type="submit" class="btn btn-primary">${isEdit ? "保存" : "添加"}</button></div></form></div>`;
+    document.body.appendChild(overlay);
+    overlay
+      .querySelector(".modal-close")
+      .addEventListener("click", () => overlay.remove());
+    overlay
+      .querySelector(".modal-close-btn")
+      .addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    overlay.querySelector("form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const username = document.getElementById("epUserUsername").value.trim();
+      const displayName = document
+        .getElementById("epUserDisplayName")
+        .value.trim();
+      const email = document.getElementById("epUserEmail").value.trim();
+      const role = document.getElementById("epUserRole").value;
+      if (!username || !displayName) {
+        this.showToast("请填写必填字段", "error");
+        return;
+      }
+      try {
+        if (isEdit) {
+          const { error: e } = await supabaseClient
+            .from("ep_users")
+            .update({ username, display_name: displayName, email, role })
+            .eq("id", data.id);
+          if (e) throw e;
+        } else {
+          const password = document.getElementById("epUserPassword").value;
+          if (!password) {
+            this.showToast("请设置密码", "error");
+            return;
+          }
+          const enc = new TextEncoder();
+          const buf = await crypto.subtle.digest(
+            "SHA-256",
+            enc.encode(password),
+          );
+          const hash = Array.from(new Uint8Array(buf))
+            .map((b) => b.toString(16).padStart(2, "0"))
+            .join("");
+          const { error: e } = await supabaseClient.from("ep_users").insert({
+            username,
+            display_name: displayName,
+            email,
+            role,
+            password_hash: hash,
+          });
+          if (e) throw e;
+        }
+        overlay.remove();
+        this.showToast(isEdit ? "已更新" : "已添加", "success");
+        await Store.loadApprovalUsersFromDB();
+        this.renderApprovalUsers();
+      } catch (err) {
+        this.showToast("操作失败: " + err.message, "error");
+      }
+    });
+  }
+
+  // ============ 流程编辑 ============
+
+  async renderWorkflows() {
+    const container = document.getElementById("workflowContainer");
+    if (!supabaseClient) {
+      container.innerHTML =
+        '<div class="empty-state"><p>数据库未连接</p></div>';
+      return;
+    }
+    try {
+      // 从缓存读取
+      let tpls = Store.getWfTemplates();
+      let users = Store.getApprovalUsers().filter((u) => u.is_active);
+      let allNodes = Store.getWfNodes();
+      let allAssignees = Store.getWfAssignees();
+      if (tpls.length === 0 || allNodes.length === 0) {
+        await Store.loadAllWorkflowData();
+        await Store.loadApprovalUsersFromDB();
+        tpls = Store.getWfTemplates();
+        users = Store.getApprovalUsers().filter((u) => u.is_active);
+        allNodes = Store.getWfNodes();
+        allAssignees = Store.getWfAssignees();
+      }
+      this._wfTemplates = tpls;
+      this._wfUsers = users;
+
+      // 按 template 分组 nodes
+      const nodesByTpl = {};
+      allNodes.forEach((n) => {
+        if (!nodesByTpl[n.template_id]) nodesByTpl[n.template_id] = [];
+        nodesByTpl[n.template_id].push(n);
+      });
+
+      // Build node→assignee mapping
+      const nodeAssignees = {};
+      allAssignees.forEach((a) => {
+        if (!nodeAssignees[a.node_id]) nodeAssignees[a.node_id] = [];
+        nodeAssignees[a.node_id].push(a.user_id);
+      });
+
+      const typeMap = { 运输: 1, 参观: 1, 选样: 1, 借还: 3, 其他: 1, 订单: 2 };
+      const types = ["运输", "参观", "选样", "借还", "其他", "订单"];
+
+      // 一次性渲染所有编辑器
+      let html = "";
+      const tplMap = {};
+      tpls.forEach((t) => (tplMap[t.apply_type] = t));
+
+      types.forEach((type) => {
+        const tpl = tplMap[type];
+        if (!tpl) return;
+        const nodes = nodesByTpl[tpl.id] || [];
+        const min = typeMap[type] || 2;
+        html += this._renderOneWorkflowEditor(tpl, nodes, nodeAssignees, min);
+      });
+
+      container.innerHTML = html;
+
+      // === 事件绑定（委托到 container） ===
+      container.addEventListener("click", (e) => {
+        // + 按钮
+        const plusBtn = e.target.closest(".wf-plus-btn");
+        if (plusBtn) {
+          this._showWFAddNode(
+            plusBtn.dataset.tpl,
+            parseInt(plusBtn.dataset.pos),
+          );
+          return;
+        }
+        // 删除节点（必须放在 .wf-node 之前处理）
+        const delBtn = e.target.closest(".wf-del-node-btn");
+        if (delBtn) {
+          e.stopPropagation();
+          const nodeId = delBtn.dataset.nodeId;
+          const node = allNodes.find((n) => n.id === nodeId);
+          if (!node) return;
+          if (node.is_preset) {
+            this.showToast("预设节点不可删除", "error");
+            return;
+          }
+          const tpl = this._wfTemplates.find((t) => t.id === node.template_id);
+          if (!tpl) return;
+          const min = typeMap[tpl.apply_type] || 2;
+          const tplNodes = allNodes.filter(
+            (n) => n.template_id === node.template_id,
+          );
+          if (tplNodes.length <= min) {
+            this.showToast("该类型至少需要 " + min + " 个节点", "error");
+            return;
+          }
+          if (!confirm("确定删除该节点？")) return;
+          supabaseClient
+            .from("ep_workflow_nodes")
+            .delete()
+            .eq("id", nodeId)
+            .then(async ({ error }) => {
+              if (error) {
+                this.showToast("删除失败", "error");
+                return;
+              }
+              await Store.loadAllWorkflowData();
+              this.renderWorkflows();
+            });
+          return;
+        }
+        // 编辑节点
+        const editBtn = e.target.closest(".wf-edit-node-btn");
+        if (editBtn) {
+          this._showWFEditNode(editBtn.dataset.nodeId);
+          return;
+        }
+        // 节点卡片
+        const nodeEl = e.target.closest(".wf-node");
+        if (nodeEl) {
+          this._showWFAssignModal(nodeEl.dataset.nodeId);
+          return;
+        }
+      });
+    } catch (e) {
+      container.innerHTML =
+        '<div class="empty-state"><p>加载失败: ' + e.message + "</p></div>";
+    }
+  }
+
+  _renderOneWorkflowEditor(tpl, nodes, nodeAssignees, min) {
+    let flowHtml =
+      '<div class="workflow-flow-chain" style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:12px 0;overflow-x:auto;">';
+    flowHtml +=
+      '<div style="background:var(--primary);color:#fff;border-radius:20px;padding:5px 14px;font-size:0.85rem;font-weight:600;flex-shrink:0;">开始</div>';
+
+    const rArr = () => {
+      flowHtml +=
+        '<div style="padding:0 2px;color:var(--text-light);font-size:1rem;flex-shrink:0;">→</div>';
+    };
+    const rPlus = (pos) => {
+      flowHtml += `<button class="btn btn-sm wf-plus-btn" data-pos="${pos}" data-tpl="${tpl.id}" style="flex-shrink:0;background:none;border:1px dashed var(--border);border-radius:50%;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:var(--text-light);font-size:1rem;line-height:1;" title="添加节点">+</button>`;
+    };
+
+    if (nodes.length === 0) {
+      rArr();
+      rPlus(0);
+    } else {
+      nodes.forEach((n, i) => {
+        const assignedIds = nodeAssignees[n.id] || [];
+        const assignedNames = assignedIds
+          .map((id) => {
+            const u = this._wfUsers.find((usr) => usr.id === id);
+            return u ? u.display_name || u.email : "";
+          })
+          .filter(Boolean);
+        rArr();
+        if (i === 0) {
+          rPlus(0);
+          rArr();
+        }
+        flowHtml += `<div class="wf-node-card" data-node-id="${n.id}" style="flex-shrink:0;width:150px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+          <div style="padding:8px 10px 4px;text-align:center;">
+            <div style="font-size:0.65rem;color:var(--text-light);margin-bottom:3px;">${n.is_preset ? '<span style="display:inline-block;background:var(--primary);color:#fff;border-radius:3px;padding:0 5px;font-size:0.6rem;line-height:1.4;">默认</span>' : "步骤" + n.order_index}</div>
+            <div style="font-weight:600;font-size:0.85rem;margin-bottom:2px;">${this._esc(n.name)}</div>
+            <div style="font-size:0.7rem;color:${assignedNames.length > 0 ? "var(--primary)" : "var(--text-light)"};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${assignedNames.length > 0 ? assignedNames.join(", ") : "未分配"}</div>
+          </div>
+          <div style="display:flex;border-top:1px solid var(--border);">
+            <button class="wf-edit-node-btn" data-node-id="${n.id}" style="flex:1;border:none;background:none;padding:4px;font-size:0.7rem;cursor:pointer;color:var(--primary);border-right:1px solid var(--border);">编辑</button>
+            ${n.is_preset ? "" : `<button class="wf-del-node-btn" data-node-id="${n.id}" style="flex:1;border:none;background:none;padding:4px;font-size:0.7rem;cursor:pointer;color:var(--danger);">删除</button>`}
+          </div>
+        </div>`;
+        rArr();
+        rPlus(i + 1);
+      });
+    }
+    rArr();
+    flowHtml +=
+      '<div style="background:var(--success);color:#fff;border-radius:20px;padding:5px 14px;font-size:0.85rem;font-weight:600;flex-shrink:0;">结束</div>';
+    flowHtml += "</div>";
+
+    return `<div class="wf-editor-card" data-tpl-id="${tpl.id}" style="border:1px solid var(--border);border-radius:var(--radius);padding:20px;background:var(--bg);margin-bottom:16px;">
+      <div style="margin-bottom:12px;">
+        <h3 style="margin:0;font-size:1rem;">${this._esc(tpl.name)}</h3>
+        <p style="margin:2px 0 0;font-size:0.8rem;color:var(--text-light);">最少 ${min} 个节点 · 当前 ${nodes.length} 个</p>
+      </div>
+      ${flowHtml}
+    </div>`;
+  }
+
+  _renderWorkflowEditor() {
+    // 已废弃：改为一次性渲染所有流程
+  }
+
+  async _showWFAddNode(templateId, pos) {
+    const name = prompt("请输入节点名称：", "审核" + (pos + 1));
+    if (!name) return;
+    // 读取当前模板的所有节点
+    const { data: nodes } = await supabaseClient
+      .from("ep_workflow_nodes")
+      .select("id,order_index")
+      .eq("template_id", templateId)
+      .order("order_index");
+    const curNodes = nodes || [];
+    // 插入新节点
+    const { error } = await supabaseClient.from("ep_workflow_nodes").insert({
+      template_id: templateId,
+      name: name,
+      order_index: pos + 1,
+    });
+    if (error) {
+      this.showToast("添加失败: " + error.message, "error");
+      return;
+    }
+    // 后续节点的 order_index 后移
+    for (let i = pos; i < curNodes.length; i++) {
+      await supabaseClient
+        .from("ep_workflow_nodes")
+        .update({ order_index: i + 2 })
+        .eq("id", curNodes[i].id);
+    }
+    await Store.loadAllWorkflowData();
+    this.renderWorkflows();
+  }
+
+  async _showWFEditNode(nodeId) {
+    // 移除已存在的弹窗
+    document.querySelectorAll(".modal-overlay").forEach((el) => el.remove());
+    // 从 Store 缓存读取节点和分配数据
+    const allNodes = Store.getWfNodes();
+    const allAssignees = Store.getWfAssignees();
+    const node = allNodes.find((n) => n.id === nodeId);
+    if (!node) {
+      this.showToast("节点不存在", "error");
+      return;
+    }
+    const nodeName = node.name;
+    const assignedSet = new Set(
+      allAssignees.filter((a) => a.node_id === nodeId).map((a) => a.user_id),
+    );
+    const users = this._wfUsers;
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay active";
+    let bodyHtml = `<div style="margin-bottom:12px;">
+      <label style="display:block;font-size:0.85rem;font-weight:600;margin-bottom:4px;">节点名称</label>
+      <input type="text" id="wfEditNodeName" class="toolbar-input" value="${this._esc(nodeName)}" style="width:100%;">
+    </div>
+    <div style="font-size:0.85rem;font-weight:600;margin-bottom:6px;">分配审批人</div>`;
+    bodyHtml += users
+      .map((u) => {
+        const checked = assignedSet.has(u.id) ? "checked" : "";
+        return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;font-size:0.85rem;">
+        <input type="checkbox" value="${u.id}" ${checked} style="width:16px;height:16px;">
+        <span>${this._esc(u.display_name || u.email)}</span>
+      </label>`;
+      })
+      .join("");
+    overlay.innerHTML = `<div class="modal" style="max-width:420px">
+      <div class="modal-header"><h3>编辑节点</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-body">${bodyHtml}</div>
+      <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-secondary modal-close-btn">取消</button>
+        <button type="button" class="btn btn-primary" id="wfEditSave">保存</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay
+      .querySelector(".modal-close")
+      .addEventListener("click", () => overlay.remove());
+    overlay
+      .querySelector(".modal-close-btn")
+      .addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+    document
+      .getElementById("wfEditSave")
+      .addEventListener("click", async () => {
+        const newName = document.getElementById("wfEditNodeName").value.trim();
+        if (!newName) {
+          this.showToast("请输入节点名称", "error");
+          return;
+        }
+        const checkedBoxes = overlay.querySelectorAll(
+          ".modal-body input[type=checkbox]:checked",
+        );
+        const selectedIds = Array.from(checkedBoxes).map((cb) => cb.value);
+        try {
+          // 更新名称
+          await supabaseClient
+            .from("ep_workflow_nodes")
+            .update({ name: newName })
+            .eq("id", nodeId);
+          // 删除旧分配
+          await supabaseClient
+            .from("ep_workflow_node_assignees")
+            .delete()
+            .eq("node_id", nodeId);
+          // 插入新分配
+          if (selectedIds.length > 0) {
+            const inserts = selectedIds.map((uid) => ({
+              node_id: nodeId,
+              user_id: uid,
+            }));
+            await supabaseClient
+              .from("ep_workflow_node_assignees")
+              .insert(inserts);
+          }
+          overlay.remove();
+          await Store.loadAllWorkflowData();
+          this.renderWorkflows();
+        } catch (err) {
+          this.showToast("保存失败: " + err.message, "error");
+        }
+      });
+  }
+
+  async _showWFAssignModal(nodeId) {
+    const users = this._wfUsers;
+    if (users.length === 0) {
+      this.showToast("暂无可用审批人，请先添加", "error");
+      return;
+    }
+
+    // 从 Store 缓存读取已分配审批人
+    const assignedSet = new Set(
+      Store.getWfAssignees()
+        .filter((a) => a.node_id === nodeId)
+        .map((a) => a.user_id),
+    );
+
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay active";
+    let bodyHtml = users
+      .map((u) => {
+        const checked = assignedSet.has(u.id) ? "checked" : "";
+        return `<label style="display:flex;align-items:center;gap:8px;padding:6px 0;cursor:pointer;">
+        <input type="checkbox" value="${u.id}" ${checked} style="width:16px;height:16px;">
+        <span>${this._esc(u.display_name || u.email)}</span>
+      </label>`;
+      })
+      .join("");
+
+    overlay.innerHTML = `<div class="modal" style="max-width:380px">
+      <div class="modal-header"><h3>分配审批人</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-body">${bodyHtml}</div>
+      <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-secondary modal-close-btn">取消</button>
+        <button type="button" class="btn btn-primary" id="wfAssignSave">保存</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay
+      .querySelector(".modal-close")
+      .addEventListener("click", () => overlay.remove());
+    overlay
+      .querySelector(".modal-close-btn")
+      .addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+
+    document
+      .getElementById("wfAssignSave")
+      .addEventListener("click", async () => {
+        const checked = Array.from(
+          overlay.querySelectorAll("input[type=checkbox]:checked"),
+        ).map((cb) => cb.value);
+        try {
+          // 删除旧的，插入新的
+          await supabaseClient
+            .from("ep_workflow_node_assignees")
+            .delete()
+            .eq("node_id", nodeId);
+          if (checked.length > 0) {
+            const inserts = checked.map((uid) => ({
+              node_id: nodeId,
+              user_id: uid,
+            }));
+            const { error } = await supabaseClient
+              .from("ep_workflow_node_assignees")
+              .insert(inserts);
+            if (error) throw error;
+          }
+          overlay.remove();
+          await Store.loadAllWorkflowData();
+          this.renderWorkflows();
+        } catch (e) {
+          this.showToast("保存失败: " + e.message, "error");
+        }
+      });
+  }
+
+  // ============ 审批记录 ============
+
+  async renderApprovalRecords() {
+    const container = document.getElementById("approvalRecordsContainer");
+    if (!supabaseClient) {
+      container.innerHTML =
+        '<div class="empty-state"><p>数据库未连接</p></div>';
+      return;
+    }
+    try {
+      // 从缓存读取
+      let records = Store.getApprovalRecords();
+      if (records.length === 0) {
+        await Store.loadApprovalRecordsFromDB();
+        records = Store.getApprovalRecords();
+      }
+      this._aprRecords = records;
+      if (this._aprRecords.length === 0) {
+        container.innerHTML =
+          '<div class="empty-state"><div class="icon"><img src="src/icon/box.svg" alt="empty" class="empty-icon"></div><p>暂无审批记录</p></div>';
+        return;
+      }
+      container.innerHTML = `<div class="table-filters" style="margin-bottom:12px;">
+        <select id="aprStatusF" class="toolbar-select" style="width:100px"><option value="">全部状态</option><option value="pending">待审批</option><option value="approved">已通过</option><option value="rejected">已拒绝</option></select>
+        <select id="aprTypeF" class="toolbar-select" style="width:100px"><option value="">全部类型</option><option value="运输">运输</option><option value="参观">参观</option><option value="选样">选样</option><option value="借还">借还</option><option value="其他">其他</option></select>
+        <input type="text" id="aprSearch" placeholder="申请人" class="toolbar-input" style="width:100px" autocomplete="off">
+        <button id="aprQueryBtn" class="toolbar-btn btn-secondary">查询</button>
+      </div>
+      <div style="overflow-x:auto;"><table class="data-table" style="width:100%"><thead><tr><th>序号</th><th>申请人</th><th>公司</th><th>类型</th><th>状态</th><th>当前节点</th><th>申请时间</th><th>操作</th></tr></thead><tbody id="aprTbody"></tbody></table></div>`;
+      this._renderAprRows();
+      document
+        .getElementById("aprQueryBtn")
+        ?.addEventListener("click", () => this._renderAprRows());
+      document
+        .getElementById("aprStatusF")
+        ?.addEventListener("change", () => this._renderAprRows());
+      document
+        .getElementById("aprTypeF")
+        ?.addEventListener("change", () => this._renderAprRows());
+      document
+        .getElementById("aprSearch")
+        ?.addEventListener("input", () => this._renderAprRows());
+    } catch (e) {
+      container.innerHTML =
+        '<div class="empty-state"><p>加载失败: ' + e.message + "</p></div>";
+    }
+  }
+
+  _renderAprRows() {
+    const statusF = document.getElementById("aprStatusF")?.value || "";
+    const typeF = document.getElementById("aprTypeF")?.value || "";
+    const search = (document.getElementById("aprSearch")?.value || "")
+      .trim()
+      .toLowerCase();
+    const tbody = document.getElementById("aprTbody");
+    let filtered = this._aprRecords;
+    if (statusF)
+      filtered = filtered.filter((r) => r.approval_status === statusF);
+    if (typeF) filtered = filtered.filter((r) => r.apply_type === typeF);
+    if (search)
+      filtered = filtered.filter((r) =>
+        (r.applicant_name || "").toLowerCase().includes(search),
+      );
+    if (filtered.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="8" style="text-align:center;color:var(--text-light);padding:24px;">无匹配记录</td></tr>';
+      return;
+    }
+    const sm = { pending: "待审批", approved: "已通过", rejected: "已拒绝" };
+    const sc = {
+      pending: "status-info",
+      approved: "status-success",
+      rejected: "status-error",
+    };
+    tbody.innerHTML = filtered
+      .map((r, i) => {
+        const ns =
+          typeof r.node_statuses === "string"
+            ? JSON.parse(r.node_statuses)
+            : r.node_statuses || [];
+        const cur = ns.find((n) => n.status === "pending");
+        const curText = cur
+          ? cur.node_name || "待审批"
+          : r.approval_status === "pending"
+            ? "待审批"
+            : r.approval_status === "approved"
+              ? "已完成"
+              : "已终止";
+        return `<tr>
+        <td style="text-align:center;color:var(--text-light);font-size:0.85rem">${i + 1}</td>
+        <td><strong>${this._esc(r.applicant_name)}</strong></td>
+        <td style="font-size:0.85rem">${this._esc(r.applicant_company || "-")}</td>
+        <td><span class="status-badge status-info">${this._esc(r.apply_type)}</span></td>
+        <td><span class="status-badge ${sc[r.approval_status] || "status-info"}">${sm[r.approval_status] || r.approval_status}</span></td>
+        <td style="font-size:0.85rem">${curText}</td>
+        <td style="font-size:0.8rem;color:var(--text-light)">${this._fmtDT(r.created_at)}</td>
+        <td><button class="btn btn-sm btn-ghost view-apr-detail" data-id="${r.id}">详情</button></td>
+      </tr>`;
+      })
+      .join("");
+    tbody.querySelectorAll(".view-apr-detail").forEach((btn) => {
+      btn.addEventListener("click", () =>
+        this.showApprovalRecordDetail(btn.dataset.id),
+      );
+    });
+  }
+
+  async showApprovalRecordDetail(recordId) {
+    const record = this._aprRecords.find((r) => r.id === recordId);
+    if (!record) {
+      this.showToast("记录不存在", "error");
+      return;
+    }
+    // 日志需按 ID 过滤，走 DB 查询；节点和用户从 Store 缓存读取
+    const [logsRes, mappsRes] = await Promise.all([
+      supabaseClient
+        .from("ep_approval_logs")
+        .select("*")
+        .eq("approval_id", recordId)
+        .order("created_at"),
+      supabaseClient
+        .from("ep_approval_mappings")
+        .select("*")
+        .eq("approval_id", recordId),
+    ]);
+    const logs = logsRes.data || [];
+    const wfNodes = Store.getWfNodes().filter(
+      (n) => n.template_id === record.template_id,
+    );
+    const users = Store.getApprovalUsers();
+    const userMap = {};
+    users.forEach((u) => {
+      userMap[u.id] = u.display_name || u.email;
+    });
+
+    const nodeStatuses =
+      typeof record.node_statuses === "string"
+        ? JSON.parse(record.node_statuses)
+        : record.node_statuses || [];
+    const sm = { pending: "待审批", approved: "已通过", rejected: "已拒绝" };
+    const sc = { pending: "info", approved: "success", rejected: "error" };
+    const am = { approve: "通过", reject: "拒绝", submit: "提交" };
+
+    const overlay = document.createElement("div");
+    overlay.className = "modal-overlay active";
+    overlay.style.overflow = "auto";
+    // 构建流程HTML
+    let flowHtml =
+      '<div style="background:var(--primary);color:#fff;border-radius:20px;padding:4px 12px;font-size:0.8rem;font-weight:600;">开始</div>';
+    wfNodes.forEach((n, i) => {
+      const ns = nodeStatuses.find(
+        (s) => s.nodeId === n.id || s.node_id === n.id,
+      );
+      const done = ns && ns.status === "approved";
+      const rejected = ns && ns.status === "rejected";
+      let bg = "var(--border)",
+        fg = "var(--text-light)",
+        lbl = "待审批";
+      if (done) {
+        bg = "var(--success)";
+        fg = "#fff";
+        lbl = "已通过";
+      } else if (rejected) {
+        bg = "var(--danger)";
+        fg = "#fff";
+        lbl = "已拒绝";
+      } else if (
+        i === 0 ||
+        (i > 0 &&
+          nodeStatuses.find(
+            (s) =>
+              (s.nodeId === wfNodes[i - 1].id ||
+                s.node_id === wfNodes[i - 1].id) &&
+              s.status === "approved",
+          ))
+      ) {
+        bg = "var(--warning)";
+        fg = "#fff";
+        lbl = "审批中";
+      }
+      const assignee = userMap[n.assignee_id] || "未知";
+      flowHtml += `<div style="padding:0 4px;color:var(--text-light);font-size:0.9rem;">→</div>
+        <div style="text-align:center;padding:6px 10px;background:${bg};color:${fg};border-radius:var(--radius);min-width:70px;">
+          <div style="font-size:0.8rem;font-weight:600;">${this._esc(n.name)}</div>
+          <div style="font-size:0.65rem;opacity:0.85;">${this._esc(assignee)}</div>
+          <div style="font-size:0.65rem;opacity:0.75;">${lbl}</div>
+        </div>`;
+    });
+    flowHtml +=
+      '<div style="padding:0 4px;color:var(--text-light);font-size:0.9rem;">→</div><div style="background:var(--success);color:#fff;border-radius:20px;padding:4px 12px;font-size:0.8rem;font-weight:600;">结束</div>';
+    // 日志HTML
+    let logsHtml =
+      logs.length === 0
+        ? '<p style="color:var(--text-light);font-size:0.85rem;">暂无操作日志</p>'
+        : logs
+            .map((log) => {
+              const op = userMap[log.operator_id] || "未知";
+              return `<div style="display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--border);">
+                <div style="min-width:60px;font-size:0.75rem;color:var(--text-light);">${this._fmtDT(log.created_at)}</div>
+                <div><span class="status-badge ${log.action === "approve" ? "status-success" : log.action === "reject" ? "status-error" : "status-info"}" style="font-size:0.7rem;">${am[log.action] || log.action}</span></div>
+                <div style="flex:1;"><div style="font-weight:600;font-size:0.85rem;">${this._esc(op)}</div>${log.comment ? '<div style="font-size:0.8rem;color:var(--text-light);margin-top:2px;">' + this._esc(log.comment) + "</div>" : ""}</div>
+              </div>`;
+            })
+            .join("");
+    // 一次性设置innerHTML
+    overlay.innerHTML = `<div class="modal" style="max-width:700px;max-height:90vh;overflow-y:auto;">
+      <div class="modal-header"><h3>审批详情</h3><button class="modal-close">&times;</button></div>
+      <div class="modal-body">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+          <div><span style="color:var(--text-light);font-size:0.8rem;">申请人</span><div style="font-weight:600;">${this._esc(record.applicant_name)}</div></div>
+          <div><span style="color:var(--text-light);font-size:0.8rem;">电话</span><div>${this._esc(record.applicant_phone)}</div></div>
+          <div><span style="color:var(--text-light);font-size:0.8rem;">公司</span><div>${this._esc(record.applicant_company || "-")}</div></div>
+          <div><span style="color:var(--text-light);font-size:0.8rem;">申请类型</span><div><span class="status-badge status-info">${this._esc(record.apply_type)}</span></div></div>
+          <div><span style="color:var(--text-light);font-size:0.8rem;">来访日期</span><div>${this._esc(record.visit_date || "-")}</div></div>
+          <div><span style="color:var(--text-light);font-size:0.8rem;">状态</span><div><span class="status-badge status-${sc[record.approval_status] || "info"}">${sm[record.approval_status] || record.approval_status}</span></div></div>
+        </div>
+        <h4 style="font-size:0.9rem;margin:0 0 12px;">审批进度</h4>
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;padding:12px;background:var(--surface);border-radius:var(--radius);margin-bottom:20px;">
+          ${flowHtml}
+        </div>
+        <h4 style="font-size:0.9rem;margin:16px 0 12px;">操作日志</h4>
+        <div style="background:var(--surface);border-radius:var(--radius);padding:12px;">
+          ${logsHtml}
+        </div>
+      </div>
+      <div class="modal-footer" style="display:flex;gap:8px;justify-content:flex-end;padding:12px 20px;border-top:1px solid var(--border);">
+        <button type="button" class="btn btn-secondary modal-close-btn">关闭</button>
+      </div>
+    </div>`;
+    document.body.appendChild(overlay);
+    overlay
+      .querySelector(".modal-close")
+      .addEventListener("click", () => overlay.remove());
+    overlay
+      .querySelector(".modal-close-btn")
+      .addEventListener("click", () => overlay.remove());
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) overlay.remove();
+    });
+  }
+
+  // ============ 语音助手管理 ============
+
+  renderVoiceAssistantView() {
+    // 默认显示知识库标签
+    const allContainers = ["vaKnowledgeContainer", "vaPersonalityContainer", "vaBehaviorContainer", "vaVerificationContainer", "vaPrecipRulesContainer", "vaMemoryContainer", "vaErrorsContainer", "vaEmotionContainer", "vaLogsContainer", "vaFunctionsContainer", "vaInstinctsContainer"];
+    const allTabs = ["vaTabKnowledge", "vaTabPersonality", "vaTabBehavior", "vaTabVerification", "vaTabPrecipRules", "vaTabMemory", "vaTabErrors", "vaTabEmotion", "vaTabLogs", "vaTabFunctions", "vaTabInstincts"];
+    allContainers.forEach((c, i) => {
+      document.getElementById(c).style.display = i === 0 ? "" : "none";
+    });
+    allTabs.forEach((t, i) => {
+      document.getElementById(t).className = i === 0 ? "toolbar-btn btn-primary" : "toolbar-btn btn-secondary";
+    });
+    this.renderVAKnowledge();
+  }
+
+  // ============ 知识库 ============
+  async renderVAKnowledge() {
+    const container = document.getElementById("vaKnowledgeContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_knowledge_base")
+        .select("content, version, updated_at")
+        .order("version", { ascending: false })
+        .limit(1)
+        .single();
+      if (error && error.code !== "PGRST116") throw error;
+      const content = data?.content || "";
+      const version = data?.version || 0;
+      const updatedAt = data?.updated_at ? this._fmtDT(data.updated_at) : "-";
+      container.innerHTML =
+        '<div style="margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">' +
+        '<span style="font-size: 0.82rem; color: var(--text-secondary);">版本: ' + version + ' · 更新: ' + updatedAt + '</span>' +
+        '<div style="display: flex; gap: 8px;">' +
+        '<button id="vaKnowledgeRefreshBtn" class="toolbar-btn btn-secondary" style="font-size: 0.78rem;">⟳ 刷新</button>' +
+        '<button id="vaSaveKnowledgeBtn" class="toolbar-btn btn-primary" style="border-radius: 3px;">💾 保存</button>' +
+        '</div>' +
+        "</div>" +
+        '<textarea id="vaKnowledgeEditor" style="width: 100%; min-height: 400px; padding: 12px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.85rem; font-family: inherit; resize: vertical; background: var(--bg); color: var(--text); box-sizing: border-box;">' +
+        this._esc(content) +
+        "</textarea>";
+      // 绑定刷新
+      document.getElementById("vaKnowledgeRefreshBtn").addEventListener("click", () => this.renderVAKnowledge());
+      document.getElementById("vaSaveKnowledgeBtn").addEventListener("click", async () => {
+        const newContent = document.getElementById("vaKnowledgeEditor").value;
+        const btn = document.getElementById("vaSaveKnowledgeBtn");
+        btn.textContent = "保存中...";
+        btn.disabled = true;
+        try {
+          const { error: insertErr } = await supabaseClient
+            .from("ev_knowledge_base")
+            .insert({ content: newContent, version: version + 1 });
+          if (insertErr) throw insertErr;
+          this.showToast("知识库保存成功", "success");
+          this.renderVAKnowledge();
+        } catch (e) {
+          this.showToast("保存失败: " + e.message, "error");
+          btn.textContent = "💾 保存";
+          btn.disabled = false;
+        }
+      });
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 人格库（可编辑） ============
+  async renderVAPersonality() {
+    const container = document.getElementById("vaPersonalityContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_personality")
+        .select("*")
+        .order("sort", { ascending: true });
+      if (error) throw error;
+
+      const sections = {
+        basic: { title: "📋 基本信息", desc: "姓名、类型、核心性格等基础设定" },
+        extended: { title: "📖 附加信息", desc: "有缘由的设定，如名字由来、使命" },
+        innate: { title: "🌱 非附加信息", desc: "本色性格，无需解释成因" },
+        tone_rule: { title: "🗣️ 语气适配规则", desc: "根据用户语气自动调整回复风格" },
+      };
+
+      let html = '';
+      // 顶部操作栏 + 刷新
+      html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">' +
+        '<h3 style="margin: 0; font-size: 1rem;">🪪 人格库 — 可编辑</h3>' +
+        '<button class="toolbar-btn btn-secondary" id="vaPersonRefreshBtn" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+        '</div>';
+      // 新增表单
+      html += '<div style="padding: 14px; border: 2px solid var(--primary); border-radius: 6px; margin-bottom: 20px; background: var(--bg-secondary);">' +
+        '<h3 style="margin: 0 0 10px; font-size: 0.95rem;">➕ 新增条目</h3>' +
+        '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">' +
+        '<div style="min-width: 120px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">分区</label>' +
+        '<select id="vaPersonNewSection" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text);">' +
+        '<option value="basic">基本信息</option><option value="extended">附加信息</option><option value="innate">非附加信息</option><option value="tone_rule">语气适配规则</option>' +
+        '</select></div>' +
+        '<div style="flex: 1; min-width: 150px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">键(Key)</label>' +
+        '<input id="vaPersonNewKey" placeholder="如 name / mission" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="flex: 2; min-width: 200px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">值(Value)</label>' +
+        '<input id="vaPersonNewValue" placeholder="内容" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="width: 60px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">排序</label>' +
+        '<input id="vaPersonNewSort" type="number" value="99" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<button id="vaPersonAddBtn" class="toolbar-btn btn-primary" style="border-radius: 3px; height: 32px;">添加</button>' +
+        '</div></div>';
+
+      // 按分区展示
+      const dataBySection = {};
+      for (const s of Object.keys(sections)) {
+        dataBySection[s] = (data || []).filter((r) => r.section === s);
+      }
+
+      for (const [secKey, secInfo] of Object.entries(sections)) {
+        const rows = dataBySection[secKey] || [];
+        html += '<div style="padding: 16px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px;">' +
+          '<h3 style="margin: 0 0 8px; font-size: 1rem;">' + secInfo.title + '</h3>' +
+          '<p style="margin: 0 0 10px; font-size: 0.78rem; color: var(--text-secondary);">' + secInfo.desc + '</p>';
+        if (rows.length === 0) {
+          html += '<p style="color: var(--text-secondary); font-size: 0.82rem; padding: 8px;">暂无数据</p>';
+        } else {
+          html += '<table style="width: 100%; font-size: 0.83rem; border-collapse: collapse;"><tbody>';
+          for (const r of rows) {
+            html += '<tr id="vaPersonRow-' + r.id + '">' +
+              '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-weight: 500; white-space: nowrap; width: 100px;">' + this._esc(r.personality_key || r.key || '') + '</td>' +
+              '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border);">' +
+              '<input class="va-person-val" data-id="' + r.id + '" data-key="' + this._escAttr(r.personality_key || r.key || '') + '" value="' + this._escAttr(r.personality_value || r.value || '') + '" style="width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text); box-sizing: border-box;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+              '</td>' +
+              '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); width: 60px; text-align: center;">' +
+              '<input class="va-person-sort" data-id="' + r.id + '" type="number" value="' + (r.sort || 0) + '" style="width: 48px; padding: 4px; border: 1px solid transparent; border-radius: 3px; font-size: 0.78rem; background: transparent; color: var(--text); text-align: center;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+              '</td>' +
+              '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); width: 70px; text-align: center;">' +
+              '<button class="toolbar-btn btn-primary" style="padding: 2px 8px; font-size: 0.72rem;" data-va-save-person="' + r.id + '">保存</button>' +
+              '<button class="toolbar-btn btn-danger" style="padding: 2px 6px; font-size: 0.72rem; margin-left: 4px;" data-va-del-person="' + r.id + '">删</button>' +
+              '</td></tr>';
+          }
+          html += '</tbody></table>';
+        }
+        html += '</div>';
+      }
+      html += '<p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 8px;">人格库来源：Supabase ev_personality 表，编辑后即时生效。</p>';
+      container.innerHTML = html;
+
+      // 绑定刷新
+      document.getElementById("vaPersonRefreshBtn").addEventListener("click", () => this.renderVAPersonality());
+
+      // 绑定添加
+      document.getElementById("vaPersonAddBtn").addEventListener("click", async () => {
+        const section = document.getElementById("vaPersonNewSection").value;
+        const key = document.getElementById("vaPersonNewKey").value.trim();
+        const value = document.getElementById("vaPersonNewValue").value.trim();
+        const sort = parseInt(document.getElementById("vaPersonNewSort").value) || 99;
+        if (!key || !value) { this.showToast("键和值不能为空", "error"); return; }
+        const btn = document.getElementById("vaPersonAddBtn");
+        btn.textContent = "保存中..."; btn.disabled = true;
+        try {
+          await supabaseClient.from("ev_personality").insert({ section, personality_key: key, personality_value: value, sort });
+          this.showToast("已添加", "success");
+          this.renderVAPersonality();
+        } catch (e) {
+          this.showToast("添加失败: " + e.message, "error");
+          btn.textContent = "添加"; btn.disabled = false;
+        }
+      });
+
+      // 绑定保存
+      container.querySelectorAll("[data-va-save-person]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-va-save-person");
+          const row = document.getElementById("vaPersonRow-" + id);
+          const valInput = row ? row.querySelector(".va-person-val") : null;
+          const sortInput = row ? row.querySelector(".va-person-sort") : null;
+          if (!valInput) return;
+          const newValue = valInput.value;
+          const newSort = sortInput ? parseInt(sortInput.value) || 0 : 0;
+          btn.textContent = "保存中..."; btn.disabled = true;
+          try {
+            await supabaseClient.from("ev_personality").update({ personality_value: newValue, sort: newSort }).eq("id", id);
+            this.showToast("已保存", "success");
+            btn.textContent = "保存"; btn.disabled = false;
+          } catch (e) {
+            this.showToast("保存失败: " + e.message, "error");
+            btn.textContent = "保存"; btn.disabled = false;
+          }
+        });
+      });
+
+      // 绑定删除
+      container.querySelectorAll("[data-va-del-person]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-va-del-person");
+          this.promptDelete("vaPersonality", id, "人格库条目 #" + id);
+        });
+      });
+
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 行为库（可编辑） ============
+  async renderVABehavior() {
+    const container = document.getElementById("vaBehaviorContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_behavior")
+        .select("*")
+        .order("sort", { ascending: true });
+      if (error) throw error;
+
+      const layers = {
+        principle_forbidden: { title: "🚫 绝对禁区", desc: "任何情况不可触犯", color: "var(--danger)" },
+        principle_rule: { title: "📋 行为准则", desc: "一般遵循的规则", color: "var(--text)" },
+        emotion: { title: "💗 情感感知", desc: "根据用户情绪调整回应方式", color: "var(--text)" },
+        execute: { title: "⚡ 执行策略", desc: "具体场景的应对方法", color: "var(--text)" },
+      };
+
+      let html = '';
+      // 顶部操作栏 + 刷新
+      html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">' +
+        '<h3 style="margin: 0; font-size: 1rem;">🛡️ 行为库 — 可编辑</h3>' +
+        '<button class="toolbar-btn btn-secondary" id="vaBehaviorRefreshBtn" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+        '</div>';
+      // 新增表单
+      html += '<div style="padding: 14px; border: 2px solid var(--primary); border-radius: 6px; margin-bottom: 20px; background: var(--bg-secondary);">' +
+        '<h3 style="margin: 0 0 10px; font-size: 0.95rem;">➕ 新增行为规则</h3>' +
+        '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">' +
+        '<div style="min-width: 130px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">层级</label>' +
+        '<select id="vaBehavNewLayer" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text);">' +
+        '<option value="principle_forbidden">绝对禁区</option><option value="principle_rule">行为准则</option><option value="emotion">情感感知</option><option value="execute">执行策略</option>' +
+        '</select></div>' +
+        '<div style="flex: 1; min-width: 150px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">键(Key)/场景</label>' +
+        '<input id="vaBehavNewKey" placeholder="如 编造事实 / 用户着急" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="flex: 2; min-width: 200px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">值(Value)/规则</label>' +
+        '<input id="vaBehavNewValue" placeholder="行为描述或应对策略" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="width: 60px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">排序</label>' +
+        '<input id="vaBehavNewSort" type="number" value="99" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<button id="vaBehavAddBtn" class="toolbar-btn btn-primary" style="border-radius: 3px; height: 32px;">添加</button>' +
+        '</div></div>';
+
+      const dataByLayer = {};
+      for (const l of Object.keys(layers)) {
+        dataByLayer[l] = (data || []).filter((r) => r.layer === l);
+      }
+
+      for (const [layerKey, layerInfo] of Object.entries(layers)) {
+        const rows = dataByLayer[layerKey] || [];
+        html += '<div style="padding: 16px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px;">' +
+          '<h3 style="margin: 0 0 8px; font-size: 1rem; color: ' + layerInfo.color + ';">' + layerInfo.title + '</h3>' +
+          '<p style="margin: 0 0 10px; font-size: 0.78rem; color: var(--text-secondary);">' + layerInfo.desc + '</p>';
+        if (rows.length === 0) {
+          html += '<p style="color: var(--text-secondary); font-size: 0.82rem; padding: 8px;">暂无数据</p>';
+        } else {
+          html += '<table style="width: 100%; font-size: 0.83rem; border-collapse: collapse;"><tbody>';
+          for (const r of rows) {
+            html += '<tr id="vaBehavRow-' + r.id + '">' +
+              '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-weight: 500; white-space: nowrap; width: 110px;">' + this._esc(r.behavior_key || r.key || '') + '</td>' +
+              '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border);">' +
+              '<input class="va-behav-val" data-id="' + r.id + '" value="' + this._escAttr(r.behavior_value || r.value || '') + '" style="width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text); box-sizing: border-box;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+              '</td>' +
+              '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); width: 60px; text-align: center;">' +
+              '<input class="va-behav-sort" data-id="' + r.id + '" type="number" value="' + (r.sort || 0) + '" style="width: 48px; padding: 4px; border: 1px solid transparent; border-radius: 3px; font-size: 0.78rem; background: transparent; color: var(--text); text-align: center;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+              '</td>' +
+              '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); width: 70px; text-align: center;">' +
+              '<button class="toolbar-btn btn-primary" style="padding: 2px 8px; font-size: 0.72rem;" data-va-save-behav="' + r.id + '">保存</button>' +
+              '<button class="toolbar-btn btn-danger" style="padding: 2px 6px; font-size: 0.72rem; margin-left: 4px;" data-va-del-behav="' + r.id + '">删</button>' +
+              '</td></tr>';
+          }
+          html += '</tbody></table>';
+        }
+        html += '</div>';
+      }
+      html += '<p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 8px;">行为库来源：Supabase ev_behavior 表，编辑后即时生效。</p>';
+      container.innerHTML = html;
+
+      // 绑定刷新
+      document.getElementById("vaBehaviorRefreshBtn").addEventListener("click", () => this.renderVABehavior());
+
+      document.getElementById("vaBehavAddBtn").addEventListener("click", async () => {
+        const layer = document.getElementById("vaBehavNewLayer").value;
+        const key = document.getElementById("vaBehavNewKey").value.trim();
+        const value = document.getElementById("vaBehavNewValue").value.trim();
+        const sort = parseInt(document.getElementById("vaBehavNewSort").value) || 99;
+        if (!key || !value) { this.showToast("键和值不能为空", "error"); return; }
+        const btn = document.getElementById("vaBehavAddBtn");
+        btn.textContent = "保存中..."; btn.disabled = true;
+        try {
+          await supabaseClient.from("ev_behavior").insert({ layer, behavior_key: key, behavior_value: value, sort });
+          this.showToast("已添加", "success");
+          this.renderVABehavior();
+        } catch (e) {
+          this.showToast("添加失败: " + e.message, "error");
+          btn.textContent = "添加"; btn.disabled = false;
+        }
+      });
+
+      container.querySelectorAll("[data-va-save-behav]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-va-save-behav");
+          const row = document.getElementById("vaBehavRow-" + id);
+          const valInput = row ? row.querySelector(".va-behav-val") : null;
+          const sortInput = row ? row.querySelector(".va-behav-sort") : null;
+          if (!valInput) return;
+          const newValue = valInput.value;
+          const newSort = sortInput ? parseInt(sortInput.value) || 0 : 0;
+          btn.textContent = "保存中..."; btn.disabled = true;
+          try {
+            await supabaseClient.from("ev_behavior").update({ behavior_value: newValue, sort: newSort }).eq("id", id);
+            this.showToast("已保存", "success");
+            btn.textContent = "保存"; btn.disabled = false;
+          } catch (e) {
+            this.showToast("保存失败: " + e.message, "error");
+            btn.textContent = "保存"; btn.disabled = false;
+          }
+        });
+      });
+
+      container.querySelectorAll("[data-va-del-behav]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-va-del-behav");
+          this.promptDelete("vaBehavior", id, "行为库条目 #" + id);
+        });
+      });
+
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 核验层（可编辑） ============
+  async renderVAVerification() {
+    const container = document.getElementById("vaVerificationContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_verification")
+        .select("*")
+        .order("sort", { ascending: true });
+      if (error) throw error;
+
+      const twoGates = {
+        rational: { title: "🔍 第一重·核验层面（理性）", desc: "事实对不对？逻辑是否一致？" },
+        humanize: { title: "💬 第二重·拟人层面（感性）", desc: "语言像不像人？语调是否自然？" },
+      };
+
+      let html = '';
+      // 顶部操作栏 + 刷新
+      html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">' +
+        '<h3 style="margin: 0; font-size: 1rem;">🔍 核验层 — 可编辑</h3>' +
+        '<button class="toolbar-btn btn-secondary" id="vaVerificationRefreshBtn" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+        '</div>';
+      html += '<div style="padding: 16px; border: 2px solid var(--primary); border-radius: 6px; background: var(--bg-secondary); margin-bottom: 16px;">' +
+        '<p style="margin: 0; font-size: 0.85rem; line-height: 1.6;">🔍 <strong>核验层是依维输出前的最后一道质检门。</strong>每次AI生成回答后，必须过一遍检查项，不通过就修正后再输出。通过 System Prompt 自检指令实现，不额外调API。</p>' +
+        '</div>';
+
+      // 新增表单
+      html += '<div style="padding: 14px; border: 2px solid var(--primary); border-radius: 6px; margin-bottom: 20px; background: var(--bg-secondary);">' +
+        '<h3 style="margin: 0 0 10px; font-size: 0.95rem;">➕ 新增核验规则</h3>' +
+        '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">' +
+        '<div style="min-width: 130px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">核验门</label>' +
+        '<select id="vaVerifNewGate" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text);">' +
+        '<option value="rational">第一重·理性</option><option value="humanize">第二重·感性</option>' +
+        '</select></div>' +
+        '<div style="flex: 1; min-width: 150px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">规则名称</label>' +
+        '<input id="vaVerifNewName" placeholder="如 自然度核验" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="flex: 2; min-width: 200px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">不通过标准</label>' +
+        '<input id="vaVerifNewDesc" placeholder="不通过的具体表现" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="flex: 2; min-width: 200px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">详细自检问题</label>' +
+        '<input id="vaVerifNewDetail" placeholder="核验时问自己的问题" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="width: 60px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">排序</label>' +
+        '<input id="vaVerifNewSort" type="number" value="99" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<button id="vaVerifAddBtn" class="toolbar-btn btn-primary" style="border-radius: 3px; height: 32px;">添加</button>' +
+        '</div></div>';
+
+      const dataByGate = {};
+      for (const g of Object.keys(twoGates)) {
+        dataByGate[g] = (data || []).filter((r) => r.gate === g);
+      }
+
+      for (const [gateKey, gateInfo] of Object.entries(twoGates)) {
+        const rows = dataByGate[gateKey] || [];
+        html += '<div style="padding: 16px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 16px;">' +
+          '<h3 style="margin: 0 0 8px; font-size: 1rem;">' + gateInfo.title + '</h3>' +
+          '<p style="margin: 0 0 10px; font-size: 0.78rem; color: var(--text-secondary);">' + gateInfo.desc + '</p>';
+        if (rows.length === 0) {
+          html += '<p style="color: var(--text-secondary); font-size: 0.82rem; padding: 8px;">暂无数据</p>';
+        } else {
+          html += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+          for (const r of rows) {
+            html += '<div id="vaVerifRow-' + r.id + '" style="padding: 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary);">' +
+              '<div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">' +
+              '<span style="font-weight: 600; font-size: 0.84rem; min-width: 100px;">' + this._esc(r.rule_name || '') + '</span>' +
+              '<input class="va-verif-name" data-id="' + r.id + '" value="' + this._escAttr(r.rule_name || '') + '" style="flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text);" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+              '<input class="va-verif-sort" data-id="' + r.id + '" type="number" value="' + (r.sort || 0) + '" style="width: 50px; padding: 4px; border: 1px solid transparent; border-radius: 3px; font-size: 0.78rem; background: transparent; color: var(--text); text-align: center;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+              '</div>' +
+              '<div style="display: flex; gap: 8px; margin-bottom: 4px;">' +
+              '<span style="font-size: 0.75rem; color: var(--danger); min-width: 100px;">不通过 →</span>' +
+              '<input class="va-verif-desc" data-id="' + r.id + '" value="' + this._escAttr(r.check_desc || '') + '" style="flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.8rem; background: transparent; color: var(--danger);" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+              '</div>' +
+              '<div style="display: flex; gap: 8px; align-items: center;">' +
+              '<span style="font-size: 0.75rem; color: var(--text-secondary); min-width: 100px;">自检问题</span>' +
+              '<input class="va-verif-detail" data-id="' + r.id + '" value="' + this._escAttr(r.check_detail || '') + '" style="flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.8rem; background: transparent; color: var(--text);" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+              '<button class="toolbar-btn btn-primary" style="padding: 2px 8px; font-size: 0.72rem;" data-va-save-verif="' + r.id + '">保存</button>' +
+              '<button class="toolbar-btn btn-danger" style="padding: 2px 6px; font-size: 0.72rem;" data-va-del-verif="' + r.id + '">删</button>' +
+              '</div></div>';
+          }
+          html += '</div>';
+        }
+        html += '</div>';
+      }
+      html += '<div style="margin-top: 16px; padding: 12px; border-left: 3px solid var(--primary); font-size: 0.82rem; background: var(--bg-secondary);">' +
+        '<strong>核验结果处理：</strong>通过→正常输出 · 不通过→修正后再输出 · 反复不通过（3次）→告诉用户"这个问题我需要再想想"并建议转人工</div>' +
+        '<p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 8px;">核验层来源：Supabase ev_verification 表，编辑后即时生效。</p>';
+      container.innerHTML = html;
+
+      // 绑定刷新
+      document.getElementById("vaVerificationRefreshBtn").addEventListener("click", () => this.renderVAVerification());
+
+      document.getElementById("vaVerifAddBtn").addEventListener("click", async () => {
+        const gate = document.getElementById("vaVerifNewGate").value;
+        const name = document.getElementById("vaVerifNewName").value.trim();
+        const desc = document.getElementById("vaVerifNewDesc").value.trim();
+        const detail = document.getElementById("vaVerifNewDetail").value.trim();
+        const sort = parseInt(document.getElementById("vaVerifNewSort").value) || 99;
+        if (!name || !desc) { this.showToast("规则名称和不通过标准不能为空", "error"); return; }
+        const btn = document.getElementById("vaVerifAddBtn");
+        btn.textContent = "保存中..."; btn.disabled = true;
+        try {
+          await supabaseClient.from("ev_verification").insert({ gate, rule_name: name, check_desc: desc, check_detail: detail, sort });
+          this.showToast("已添加", "success");
+          this.renderVAVerification();
+        } catch (e) {
+          this.showToast("添加失败: " + e.message, "error");
+          btn.textContent = "添加"; btn.disabled = false;
+        }
+      });
+
+      container.querySelectorAll("[data-va-save-verif]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-va-save-verif");
+          const row = document.getElementById("vaVerifRow-" + id);
+          if (!row) return;
+          const nameInput = row.querySelector(".va-verif-name");
+          const descInput = row.querySelector(".va-verif-desc");
+          const detailInput = row.querySelector(".va-verif-detail");
+          const sortInput = row.querySelector(".va-verif-sort");
+          btn.textContent = "保存中..."; btn.disabled = true;
+          try {
+            await supabaseClient.from("ev_verification").update({
+              rule_name: nameInput ? nameInput.value : '',
+              check_desc: descInput ? descInput.value : '',
+              check_detail: detailInput ? detailInput.value : '',
+              sort: sortInput ? parseInt(sortInput.value) || 0 : 0,
+            }).eq("id", id);
+            this.showToast("已保存", "success");
+            btn.textContent = "保存"; btn.disabled = false;
+          } catch (e) {
+            this.showToast("保存失败: " + e.message, "error");
+            btn.textContent = "保存"; btn.disabled = false;
+          }
+        });
+      });
+
+      container.querySelectorAll("[data-va-del-verif]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-va-del-verif");
+          this.promptDelete("vaVerification", id, "核验规则 #" + id);
+        });
+      });
+
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 沉淀规则（可编辑） ============
+  async renderVAPrecipRules() {
+    const container = document.getElementById("vaPrecipRulesContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_precipitation_rules")
+        .select("*")
+        .order("priority", { ascending: true });
+      if (error) throw error;
+
+      let html = '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">' +
+        '<h3 style="margin: 0; font-size: 1rem;">📐 沉淀规则 — 可编辑</h3>' +
+        '<button class="toolbar-btn btn-secondary" id="vaPrecipRulesRefreshBtn" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+        '</div>' +
+        '<p class="panel-desc" style="font-size: 0.84rem; color: var(--text-secondary); margin-bottom: 16px;">配置每日沉淀的分析维度、重点和提示词模板。</p>';
+
+      // 新增表单
+      html += '<div style="padding: 14px; border: 2px solid var(--primary); border-radius: 6px; margin-bottom: 20px; background: var(--bg-secondary);">' +
+        '<h3 style="margin: 0 0 10px; font-size: 0.95rem;">➕ 新增沉淀维度</h3>' +
+        '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">' +
+        '<div style="flex: 1; min-width: 130px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">维度名称</label>' +
+        '<input id="vaPrecipNewDim" placeholder="如 知识沉淀 / 情感分析" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="width: 60px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">优先级</label>' +
+        '<input id="vaPrecipNewPriority" type="number" value="5" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="flex: 2; min-width: 250px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">分析提示词</label>' +
+        '<input id="vaPrecipNewPrompt" placeholder="告诉AI从什么角度分析" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<button id="vaPrecipAddBtn" class="toolbar-btn btn-primary" style="border-radius: 3px; height: 32px;">添加</button>' +
+        '</div></div>';
+
+      if (!data || data.length === 0) {
+        html += '<p style="color: var(--text-secondary); font-size: 0.84rem; padding: 16px;">暂无沉淀规则。添加维度后，每日沉淀会按规则进行分析。</p>';
+      } else {
+        html += '<div style="overflow-x: auto;"><table style="width: 100%; font-size: 0.83rem; border-collapse: collapse;"><thead><tr style="background: var(--bg-secondary);">' +
+          '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">维度</th>' +
+          '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: center; width: 60px;">优先级</th>' +
+          '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">分析提示词</th>' +
+          '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: center; width: 100px;">操作</th>' +
+          '</tr></thead><tbody>';
+        for (const r of data) {
+          html += '<tr id="vaPrecipRow-' + r.id + '">' +
+            '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border);">' +
+            '<input class="va-precip-dim" data-id="' + r.id + '" value="' + this._escAttr(r.dimension || '') + '" style="width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text); box-sizing: border-box;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+            '</td>' +
+            '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center;">' +
+            '<input class="va-precip-priority" data-id="' + r.id + '" type="number" value="' + (r.priority || 5) + '" style="width: 48px; padding: 4px; border: 1px solid transparent; border-radius: 3px; font-size: 0.78rem; background: transparent; color: var(--text); text-align: center;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+            '</td>' +
+            '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border);">' +
+            '<input class="va-precip-prompt" data-id="' + r.id + '" value="' + this._escAttr(r.prompt || '') + '" style="width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text); box-sizing: border-box;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+            '</td>' +
+            '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center;">' +
+            '<button class="toolbar-btn btn-primary" style="padding: 2px 8px; font-size: 0.72rem;" data-va-save-precip="' + r.id + '">保存</button>' +
+            '<button class="toolbar-btn btn-danger" style="padding: 2px 6px; font-size: 0.72rem; margin-left: 4px;" data-va-del-precip="' + r.id + '">删</button>' +
+            '</td></tr>';
+        }
+        html += '</tbody></table></div>';
+      }
+      html += '<p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 8px;">沉淀规则来源：Supabase ev_precipitation_rules 表，编辑后即时生效。每日沉淀时AI会按照这些维度进行分析。</p>';
+      container.innerHTML = html;
+
+      // 绑定刷新
+      document.getElementById("vaPrecipRulesRefreshBtn").addEventListener("click", () => this.renderVAPrecipRules());
+
+      document.getElementById("vaPrecipAddBtn").addEventListener("click", async () => {
+        const dim = document.getElementById("vaPrecipNewDim").value.trim();
+        const priority = parseInt(document.getElementById("vaPrecipNewPriority").value) || 5;
+        const prompt = document.getElementById("vaPrecipNewPrompt").value.trim();
+        if (!dim) { this.showToast("维度名称不能为空", "error"); return; }
+        const btn = document.getElementById("vaPrecipAddBtn");
+        btn.textContent = "保存中..."; btn.disabled = true;
+        try {
+          await supabaseClient.from("ev_precipitation_rules").insert({ dimension: dim, priority, prompt });
+          this.showToast("已添加", "success");
+          this.renderVAPrecipRules();
+        } catch (e) {
+          this.showToast("添加失败: " + e.message, "error");
+          btn.textContent = "添加"; btn.disabled = false;
+        }
+      });
+
+      container.querySelectorAll("[data-va-save-precip]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-va-save-precip");
+          const row = document.getElementById("vaPrecipRow-" + id);
+          if (!row) return;
+          const dimInput = row.querySelector(".va-precip-dim");
+          const priorityInput = row.querySelector(".va-precip-priority");
+          const promptInput = row.querySelector(".va-precip-prompt");
+          btn.textContent = "保存中..."; btn.disabled = true;
+          try {
+            await supabaseClient.from("ev_precipitation_rules").update({
+              dimension: dimInput ? dimInput.value : '',
+              priority: priorityInput ? parseInt(priorityInput.value) || 5 : 5,
+              prompt: promptInput ? promptInput.value : '',
+            }).eq("id", id);
+            this.showToast("已保存", "success");
+            btn.textContent = "保存"; btn.disabled = false;
+          } catch (e) {
+            this.showToast("保存失败: " + e.message, "error");
+            btn.textContent = "保存"; btn.disabled = false;
+          }
+        });
+      });
+
+      container.querySelectorAll("[data-va-del-precip]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-va-del-precip");
+          this.promptDelete("vaPrecipRules", id, "沉淀规则 #" + id);
+        });
+      });
+
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 记忆库 ============
+  async renderVAMemory() {
+    const container = document.getElementById("vaMemoryContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_user_memory")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">暂无记忆记录。当依维和用户对话累积后，这里会出现长期记忆。</div>';
+        return;
+      }
+      let html =
+        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+        '<h3 style="margin: 0; font-size: 1rem;">🧠 记忆库</h3>' +
+        '<button class="toolbar-btn btn-secondary" id="vaMemoryRefreshBtn" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+        '</div>' +
+        '<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">' +
+        "<thead><tr>" +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">时间</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">关键词</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">摘要</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">记忆内容</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: center; width: 60px;">操作</th>' +
+        "</tr></thead><tbody>";
+      for (const m of data) {
+        html +=
+          "<tr>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap;">' + this._fmtDT(m.created_at) + "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-weight: 500;">' + this._esc(m.memory_key) + "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 0.78rem; color: var(--text-secondary); max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">' + this._esc(m.memory_summary || '') + "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border);">' + this._esc(m.memory_value) + "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center;">' +
+          '<button class="toolbar-btn btn-danger" style="padding: 2px 8px; font-size: 0.75rem;" data-va-delete-memory="' + m.id + '">删除</button>' +
+          "</td>" +
+          "</tr>";
+      }
+      html += "</tbody></table></div>";
+      container.innerHTML = html;
+      // 绑定刷新
+      document.getElementById("vaMemoryRefreshBtn").addEventListener("click", () => this.renderVAMemory());
+      // 绑定删除事件
+      container.querySelectorAll("[data-va-delete-memory]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-va-delete-memory");
+          try {
+            await supabaseClient.from("ev_user_memory").delete().eq("id", id);
+            this.showToast("已删除", "success");
+            this.renderVAMemory();
+          } catch (e) {
+            this.showToast("删除失败: " + e.message, "error");
+          }
+        });
+      });
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 错误库 ============
+  async renderVAErrors() {
+    const container = document.getElementById("vaErrorsContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    // 表单区 + 列表区
+    let html =
+      '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+      '<h3 style="margin: 0; font-size: 1rem;">❌ 错误库</h3>' +
+      '<button class="toolbar-btn btn-secondary" id="vaErrorsRefreshBtn" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+      '</div>' +
+      '<div style="padding: 16px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 20px;">' +
+      '<h3 style="margin: 0 0 12px; font-size: 0.95rem;">✏️ 教依维改进（写入后下次对话自动生效）</h3>' +
+      '<div style="display: flex; flex-direction: column; gap: 8px;">' +
+      '<div style="display: flex; gap: 8px;">' +
+      '<input id="vaErrType" placeholder="问题类型（如：回复太报表化）" style="flex: 1; padding: 6px 10px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text);">' +
+      '</div>' +
+      '<textarea id="vaErrUserInput" placeholder="用户当时的提问（可选）" style="width: 100%; min-height: 40px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box; resize: vertical; font-family: inherit;"></textarea>' +
+      '<textarea id="vaErrResponse" placeholder="依维当时不合适的回答（可选）" style="width: 100%; min-height: 40px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box; resize: vertical; font-family: inherit;"></textarea>' +
+      '<textarea id="vaErrFix" placeholder="告诉依维以后应该怎么做（必填）" style="width: 100%; min-height: 56px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box; resize: vertical; font-family: inherit;"></textarea>' +
+      '<div style="display: flex; justify-content: flex-end;">' +
+      '<button id="vaAddErrorBtn" class="toolbar-btn btn-primary" style="border-radius: 3px;">💾 写入错误库</button>' +
+      '</div>' +
+      '</div>' +
+      '</div>' +
+      '<div id="vaErrorsList"><p style="color: var(--text-secondary);">加载中...</p></div>';
+    container.innerHTML = html;
+    // 绑定刷新
+    document.getElementById("vaErrorsRefreshBtn").addEventListener("click", () => this.renderVAErrors());
+    // 绑定提交
+    document.getElementById("vaAddErrorBtn").addEventListener("click", async () => {
+      const fix = document.getElementById("vaErrFix").value.trim();
+      if (!fix) { this.showToast("改进方向必填", "error"); return; }
+      const btn = document.getElementById("vaAddErrorBtn");
+      btn.textContent = "保存中...";
+      btn.disabled = true;
+      try {
+        await supabaseClient.from("ev_errors").insert({
+          error_type: document.getElementById("vaErrType").value.trim() || "手动标注",
+          user_input: document.getElementById("vaErrUserInput").value.trim() || null,
+          ai_response: document.getElementById("vaErrResponse").value.trim() || null,
+          fix_suggest: fix,
+        });
+        this.showToast("已写入，下次对话自动生效", "success");
+        this.renderVAErrors();
+      } catch (e) {
+        this.showToast("保存失败: " + e.message, "error");
+        btn.textContent = "💾 写入错误库";
+        btn.disabled = false;
+      }
+    });
+    // 加载列表
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_errors")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        document.getElementById("vaErrorsList").innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">暂无错误记录。在上面教你发现依维"不像人"的地方，她会记住并改进。</div>';
+        return;
+      }
+      let listHtml = '<div style="display: flex; flex-direction: column; gap: 12px;">';
+      for (const e of data) {
+        listHtml +=
+          '<div style="padding: 14px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.83rem;">' +
+          '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">' +
+          '<span style="font-weight: 600; color: var(--danger);">' + (e.error_type || "未分类") + '</span>' +
+          '<span style="font-size: 0.75rem; color: var(--text-secondary);">' + this._fmtDT(e.created_at) + '</span>' +
+          '<button class="toolbar-btn btn-danger" style="padding: 2px 8px; font-size: 0.72rem;" data-va-delete-error="' + e.id + '">删除</button>' +
+          "</div>" +
+          '<div style="margin-bottom: 6px;"><span style="color: var(--text-secondary);">用户问题：</span>' + this._esc(e.user_input || "") + '</div>' +
+          '<div style="margin-bottom: 6px;"><span style="color: var(--text-secondary);">依维回答：</span>' + this._esc(e.ai_response || "") + '</div>' +
+          '<div style="margin-bottom: 6px;"><span style="color: var(--text-secondary);">改进方向：</span>' + this._esc(e.fix_suggest || "待分析") + '</div>' +
+          "</div>";
+      }
+      listHtml += "</div>";
+      document.getElementById("vaErrorsList").innerHTML = listHtml;
+      document.querySelectorAll("[data-va-delete-error]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-va-delete-error");
+          try {
+            await supabaseClient.from("ev_errors").delete().eq("id", id);
+            this.showToast("已删除", "success");
+            this.renderVAErrors();
+          } catch (e2) {
+            this.showToast("删除失败: " + e2.message, "error");
+          }
+        });
+      });
+    } catch (e) {
+      document.getElementById("vaErrorsList").innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 情感趋势 ============
+  async renderVAEmotion() {
+    const container = document.getElementById("vaEmotionContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_emotion_log")
+        .select("*")
+        .order("date", { ascending: false })
+        .limit(30);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">暂无情感趋势记录。每日沉淀运行后会自动生成。</div>';
+        return;
+      }
+      let html =
+        '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+        '<h3 style="margin: 0; font-size: 1rem;">💗 情感趋势</h3>' +
+        '<button class="toolbar-btn btn-secondary" id="vaEmotionRefreshBtn" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+        '</div>' +
+        '<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">' +
+        "<thead><tr>" +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">日期</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">情感总结</th>' +
+        "</tr></thead><tbody>";
+      for (const r of data) {
+        html +=
+          "<tr>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap; font-weight: 500;">' + (r.date || "-") + "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border);">' + this._esc(r.summary || "") + "</td>" +
+          "</tr>";
+      }
+      html += "</tbody></table></div>";
+      container.innerHTML = html;
+      // 绑定刷新
+      document.getElementById("vaEmotionRefreshBtn").addEventListener("click", () => this.renderVAEmotion());
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 对话日志 ============
+  async renderVALogs() {
+    const container = document.getElementById("vaLogsContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_chat_logs")
+        .select("id, user_message, ai_response, created_at, session_id")
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        container.innerHTML = '<p style="color: var(--text-secondary);">暂无对话记录</p>';
+        return;
+      }
+      let html =
+        '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 10px;">' +
+        '<button id="vaLogsSelectAll" class="toolbar-btn btn-secondary" style="font-size: 0.78rem; padding: 4px 12px;">☑ 全选</button>' +
+        '<button id="vaLogsDeselectAll" class="toolbar-btn btn-secondary" style="font-size: 0.78rem; padding: 4px 12px;">☐ 取消全选</button>' +
+        '<span style="flex: 1;"></span>' +
+        '<button id="vaLogsRefreshBtn" class="toolbar-btn btn-secondary" style="font-size: 0.78rem;">⟳ 刷新</button>' +
+        '<button id="vaLogsSummaryBtn" class="toolbar-btn btn-primary" style="border-radius: 3px;">🔍 总结选中</button>' +
+        '<button id="vaLogsBatchDelBtn" class="toolbar-btn btn-danger" style="border-radius: 3px;">🗑 批量删除</button>' +
+        '</div>' +
+        '<div id="vaLogsSummaryResult" style="display: none; padding: 16px; border: 2px solid var(--primary); border-radius: 6px; margin-bottom: 12px; font-size: 0.84rem; line-height: 1.7; white-space: pre-wrap;"></div>' +
+        '<div style="overflow-x: auto;"><table style="width: 100%; border-collapse: collapse; font-size: 0.82rem;">' +
+        "<thead><tr>" +
+        '<th style="text-align: center; padding: 8px; border-bottom: 2px solid var(--border); width: 36px;">选</th>' +
+        '<th style="text-align: left; padding: 8px; border-bottom: 2px solid var(--border);">时间</th>' +
+        '<th style="text-align: left; padding: 8px; border-bottom: 2px solid var(--border); width: 100px;">会话ID</th>' +
+        '<th style="text-align: left; padding: 8px; border-bottom: 2px solid var(--border);">用户问题</th>' +
+        '<th style="text-align: left; padding: 8px; border-bottom: 2px solid var(--border);">AI 回答</th>' +
+        '<th style="text-align: center; padding: 8px; border-bottom: 2px solid var(--border); width: 60px;">操作</th>' +
+        "</tr></thead><tbody>";
+      for (const log of data) {
+        html +=
+          "<tr>" +
+          '<td style="padding: 4px 8px; border-bottom: 1px solid var(--border); text-align: center;">' +
+          '<input type="checkbox" class="va-log-check" data-log-id="' + log.id + '" data-user-msg="' + this._escAttr(log.user_message) + '" data-ai-resp="' + this._escAttr(log.ai_response) + '">' +
+          "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); white-space: nowrap;">' +
+          this._fmtDT(log.created_at) +
+          "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.75rem; color: var(--text-secondary); white-space: nowrap; max-width: 100px; overflow: hidden; text-overflow: ellipsis;" title="' + this._escAttr(log.session_id || '') + '">' +
+          this._esc(log.session_id || '-') +
+          "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' +
+          this._esc(log.user_message) +
+          '">' +
+          this._esc(log.user_message) +
+          "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); max-width: 240px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="' +
+          this._esc(log.ai_response) +
+          '">' +
+          this._esc(log.ai_response) +
+          "</td>" +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center;">' +
+          '<button class="toolbar-btn btn-danger" style="padding: 2px 8px; font-size: 0.75rem;" data-va-delete-log="' + log.id + '">删除</button>' +
+          "</td>" +
+          "</tr>";
+      }
+      html += "</tbody></table></div>";
+      container.innerHTML = html;
+
+      // 绑定刷新
+      document.getElementById("vaLogsRefreshBtn").addEventListener("click", () => this.renderVALogs());
+
+      // 全选/取消
+      document.getElementById("vaLogsSelectAll").addEventListener("click", () => {
+        container.querySelectorAll(".va-log-check").forEach((cb) => { cb.checked = true; });
+      });
+      document.getElementById("vaLogsDeselectAll").addEventListener("click", () => {
+        container.querySelectorAll(".va-log-check").forEach((cb) => { cb.checked = false; });
+      });
+
+      // 总结选中
+      document.getElementById("vaLogsSummaryBtn").addEventListener("click", async () => {
+        const checks = container.querySelectorAll(".va-log-check:checked");
+        if (checks.length === 0) { this.showToast("请先勾选要总结的记录", "error"); return; }
+        const logs = [];
+        checks.forEach((cb) => {
+          logs.push({
+            user: cb.getAttribute("data-user-msg") || "",
+            ai: cb.getAttribute("data-ai-resp") || "",
+          });
+        });
+        const resultDiv = document.getElementById("vaLogsSummaryResult");
+        resultDiv.style.display = "";
+        resultDiv.innerHTML = "AI 分析中...";
+        try {
+          const summary = await this._summaryVALogs(logs);
+          resultDiv.innerHTML =
+            '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">' +
+            '<strong>分析结果（共 ' + logs.length + ' 条对话）</strong>' +
+            '<button id="vaCopySummaryBtn" class="toolbar-btn btn-secondary" style="font-size: 0.78rem; padding: 4px 12px;">📋 一键复制到错误库</button>' +
+            '</div>' +
+            summary.replace(/\n/g, "<br>");
+          document.getElementById("vaCopySummaryBtn").addEventListener("click", () => {
+            // 切换到错误库标签，预填改进方向
+            document.getElementById("vaTabErrors").click();
+            setTimeout(() => {
+              const fixEl = document.getElementById("vaErrFix");
+              if (fixEl) fixEl.value = summary;
+            }, 300);
+          });
+        } catch (e) {
+          resultDiv.innerHTML = '<span style="color: var(--danger);">分析失败: ' + this._esc(e.message) + '</span>';
+        }
+      });
+
+      // 批量删除
+      document.getElementById("vaLogsBatchDelBtn").addEventListener("click", () => {
+        const checks = container.querySelectorAll(".va-log-check:checked");
+        if (checks.length === 0) { this.showToast("请先勾选要删除的记录", "error"); return; }
+        const ids = [];
+        checks.forEach((cb) => ids.push(cb.getAttribute("data-log-id")));
+        this.promptDelete("batchVaChatLog", ids, "批量删除 " + ids.length + " 条对话记录");
+      });
+
+      // 绑定删除事件
+      container.querySelectorAll("[data-va-delete-log]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-va-delete-log");
+          this.promptDelete("vaChatLog", id, "对话记录");
+        });
+      });
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ============ 函数技能库（可编辑） ============
+  async renderVAFunctions() {
+    const container = document.getElementById("vaFunctionsContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_functions")
+        .select("*")
+        .order("sort", { ascending: true });
+      if (error) {
+        // 表可能不存在
+        if (error.code === "42P01" || error.message?.includes("does not exist")) {
+          container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">' +
+            '<p>ev_functions 表未创建。</p>' +
+            '<p style="font-size: 0.82rem;">请在 Supabase SQL Editor 中执行 migrations/ev_functions.sql</p>' +
+            '</div>';
+          return;
+        }
+        throw error;
+      }
+
+      if (!data || data.length === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">' +
+          '<p>暂无函数定义。</p>' +
+          '<button id="vaFuncSeedBtn" class="toolbar-btn btn-primary" style="margin-top: 12px; border-radius: 3px;">🌱 初始化默认函数</button>' +
+          '</div>';
+        document.getElementById("vaFuncSeedBtn").addEventListener("click", async () => {
+          const defaults = [
+            { function_name: "query_knowledge_base", cn_name: "知识库", description: "获取展馆知识库内容（介绍、规则等静态文本信息）", parameters: { type: "object", properties: {}, required: [] }, sort: 1 },
+            { function_name: "query_projects", cn_name: "项目列表", description: "获取展陈项目列表（项目名称、品牌、描述等）", parameters: { type: "object", properties: {}, required: [] }, sort: 2 },
+            { function_name: "query_brands", cn_name: "品牌列表", description: "获取所有品牌列表（如水墨江南、欣旺等）", parameters: { type: "object", properties: {}, required: [] }, sort: 3 },
+            { function_name: "query_sample_categories", cn_name: "样品品类", description: "获取所有样品品类/品名列表（如木地板、染色枫木、胡桃木等）", parameters: { type: "object", properties: {}, required: [] }, sort: 4 },
+            { function_name: "query_sample_stats", cn_name: "样品统计", description: "获取样品统计数据（样品总数、品类数量、品牌数量）", parameters: { type: "object", properties: {}, required: [] }, sort: 5 },
+            { function_name: "search_samples", cn_name: "样品搜索", description: "按品牌、品类、关键词搜索样品详情", parameters: { type: "object", properties: { brand: { type: "string", description: "品牌名称筛选（可选）" }, category: { type: "string", description: "品类/品名筛选（可选）" }, keyword: { type: "string", description: "搜索关键词（可选）" } }, required: [] }, sort: 6 },
+            { function_name: "query_visitors", cn_name: "访客记录", description: "获取访客/来访记录（来展馆参观的人），包括姓名、公司、电话、来访日期", parameters: { type: "object", properties: { limit: { type: "number", description: "返回条数（默认10）" } }, required: [] }, sort: 7 },
+            { function_name: "query_apply_records", cn_name: "申请记录", description: "获取申请记录（包括借还、参观、运输等各种类型的申请），包括申请人姓名、公司、电话、申请类型、来访日期、状态等", parameters: { type: "object", properties: { type: { type: "string", description: "申请类型筛选：'参观'=访客来访, '借还'=借还样品, '运输'=运输, '其他'" }, limit: { type: "number", description: "返回条数（默认20）" } }, required: [] }, sort: 8 },
+            { function_name: "query_orders", cn_name: "订单信息", description: "获取订单信息（订单号、客户姓名、电话、公司、项目、状态等）", parameters: { type: "object", properties: { status: { type: "string", description: "订单状态筛选：'已收档'或'未提交'" } }, required: [] }, sort: 9 },
+          ];
+          for (const fn of defaults) {
+            await supabaseClient.from("ev_functions").upsert(fn, { onConflict: "function_name" });
+          }
+          this.showToast("默认函数已初始化", "success");
+          this.renderVAFunctions();
+        });
+        return;
+      }
+
+      let html = '';
+      // 顶部操作栏 + 刷新
+      html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">' +
+        '<div style="font-size: 0.82rem; color: var(--text-secondary);">AI 可调用的 <strong>' + data.length + '</strong> 个工具函数</div>' +
+        '<button class="toolbar-btn btn-secondary" id="vaFunctionsRefreshBtn" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+        '</div>';
+
+      // 新增表单
+      html += '<div style="padding: 14px; border: 2px solid var(--primary); border-radius: 6px; margin-bottom: 20px; background: var(--bg-secondary);">' +
+        '<h3 style="margin: 0 0 10px; font-size: 0.95rem;">➕ 新增函数</h3>' +
+        '<div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end;">' +
+        '<div style="flex: 1; min-width: 130px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">函数名</label>' +
+        '<input id="vaFuncNewName" placeholder="如 get_user_info" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="width: 100px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">中文名</label>' +
+        '<input id="vaFuncNewCN" placeholder="用户信息" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="flex: 2; min-width: 200px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">描述</label>' +
+        '<input id="vaFuncNewDesc" placeholder="告诉AI此函数的用途" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<div style="width: 60px;"><label style="font-size: 0.78rem; color: var(--text-secondary);">排序</label>' +
+        '<input id="vaFuncNewSort" type="number" value="99" style="width: 100%; padding: 6px; border: 1px solid var(--border); border-radius: 3px; font-size: 0.82rem; background: var(--bg); color: var(--text); box-sizing: border-box;"></div>' +
+        '<button id="vaFuncAddBtn" class="toolbar-btn btn-primary" style="border-radius: 3px; height: 32px;">添加</button>' +
+        '</div></div>';
+
+      html += '<div style="overflow-x: auto;"><table style="width: 100%; font-size: 0.83rem; border-collapse: collapse;"><thead><tr style="background: var(--bg-secondary);">' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">函数名</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">中文名</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: left;">描述</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: center; width: 60px;">状态</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: center; width: 60px;">排序</th>' +
+        '<th style="padding: 8px; border-bottom: 2px solid var(--border); text-align: center; width: 100px;">操作</th>' +
+        '</tr></thead><tbody>';
+
+      for (const fn of data) {
+        const enabled = fn.is_enabled !== false;
+        html += '<tr id="vaFuncRow-' + fn.id + '">' +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); font-family: monospace; font-size: 0.82rem; font-weight: 500;">' +
+          '<input class="va-func-name" data-id="' + fn.id + '" value="' + this._escAttr(fn.function_name || '') + '" style="width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text); box-sizing: border-box; font-family: monospace;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+          '</td>' +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border);">' +
+          '<input class="va-func-cn" data-id="' + fn.id + '" value="' + this._escAttr(fn.cn_name || '') + '" style="width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text); box-sizing: border-box;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+          '</td>' +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border);">' +
+          '<textarea class="va-func-desc" data-id="' + fn.id + '" style="width: 100%; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text); box-sizing: border-box; resize: vertical; font-family: inherit; min-height: 28px;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' + this._esc(fn.description || '') + '</textarea>' +
+          '</td>' +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center;">' +
+          '<button class="toolbar-btn ' + (enabled ? 'btn-primary' : 'btn-danger') + ' va-func-toggle" data-id="' + fn.id + '" data-enabled="' + enabled + '" style="padding: 2px 8px; font-size: 0.72rem;">' + (enabled ? '✓' : '✗') + '</button>' +
+          '</td>' +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center;">' +
+          '<input class="va-func-sort" data-id="' + fn.id + '" type="number" value="' + (fn.sort || 99) + '" style="width: 48px; padding: 4px; border: 1px solid transparent; border-radius: 3px; font-size: 0.78rem; background: transparent; color: var(--text); text-align: center;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg-secondary)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+          '</td>' +
+          '<td style="padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: center;">' +
+          '<button class="toolbar-btn btn-primary" style="padding: 2px 8px; font-size: 0.72rem;" data-va-save-func="' + fn.id + '">保存</button>' +
+          '<button class="toolbar-btn btn-danger" style="padding: 2px 6px; font-size: 0.72rem; margin-left: 4px;" data-va-del-func="' + fn.id + '">删</button>' +
+          '</td></tr>';
+      }
+      html += '</tbody></table></div>';
+      html += '<p style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 8px;">函数技能库来源：Supabase ev_functions 表，修改后下一次对话自动生效。禁用/启用即时生效。注意：函数名修改后需在服务端代码中同步更新 TOOL_HANDLERS 映射。</p>';
+      container.innerHTML = html;
+
+      // 绑定刷新
+      document.getElementById("vaFunctionsRefreshBtn").addEventListener("click", () => this.renderVAFunctions());
+
+      // 绑定添加
+      document.getElementById("vaFuncAddBtn").addEventListener("click", async () => {
+        const name = document.getElementById("vaFuncNewName").value.trim();
+        const cn = document.getElementById("vaFuncNewCN").value.trim();
+        const desc = document.getElementById("vaFuncNewDesc").value.trim();
+        const sort = parseInt(document.getElementById("vaFuncNewSort").value) || 99;
+        if (!name || !desc) { this.showToast("函数名和描述不能为空", "error"); return; }
+        const btn = document.getElementById("vaFuncAddBtn");
+        btn.textContent = "保存中..."; btn.disabled = true;
+        try {
+          await supabaseClient.from("ev_functions").insert({
+            function_name: name, cn_name: cn || name, description: desc,
+            parameters: { type: "object", properties: {}, required: [] }, sort,
+          });
+          this.showToast("已添加（需在服务端添加 TOOL_HANDLER 才能执行）", "success");
+          this.renderVAFunctions();
+        } catch (e) {
+          this.showToast("添加失败: " + e.message, "error");
+          btn.textContent = "添加"; btn.disabled = false;
+        }
+      });
+
+      // 绑定保存
+      container.querySelectorAll("[data-va-save-func]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-va-save-func");
+          const row = document.getElementById("vaFuncRow-" + id);
+          if (!row) return;
+          const nameInput = row.querySelector(".va-func-name");
+          const cnInput = row.querySelector(".va-func-cn");
+          const descInput = row.querySelector(".va-func-desc");
+          const sortInput = row.querySelector(".va-func-sort");
+          btn.textContent = "保存中..."; btn.disabled = true;
+          try {
+            await supabaseClient.from("ev_functions").update({
+              function_name: nameInput ? nameInput.value : '',
+              cn_name: cnInput ? cnInput.value : '',
+              description: descInput ? descInput.value : '',
+              sort: sortInput ? parseInt(sortInput.value) || 99 : 99,
+            }).eq("id", id);
+            this.showToast("已保存", "success");
+            btn.textContent = "保存"; btn.disabled = false;
+          } catch (e) {
+            this.showToast("保存失败: " + e.message, "error");
+            btn.textContent = "保存"; btn.disabled = false;
+          }
+        });
+      });
+
+      // 绑定删除
+      container.querySelectorAll("[data-va-del-func]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const id = btn.getAttribute("data-va-del-func");
+          this.promptDelete("vaFunction", id, "函数 #" + id);
+        });
+      });
+
+      // 绑定启用/禁用
+      container.querySelectorAll(".va-func-toggle").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = btn.getAttribute("data-id");
+          const enabled = btn.getAttribute("data-enabled") === "true";
+          try {
+            await supabaseClient.from("ev_functions").update({ is_enabled: !enabled }).eq("id", id);
+            this.showToast(enabled ? "已禁用" : "已启用", "success");
+            this.renderVAFunctions();
+          } catch (e) {
+            this.showToast("操作失败: " + e.message, "error");
+          }
+        });
+      });
+
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // ===================== 本能库 - 自然语言规则 =====================
+  async renderVAInstincts() {
+    const container = document.getElementById("vaInstinctsContainer");
+    if (!supabaseClient) {
+      container.innerHTML = '<p style="color: var(--text-secondary);">Supabase 未连接</p>';
+      return;
+    }
+    container.innerHTML = '<p style="color: var(--text-secondary);">加载中...</p>';
+    try {
+      const { data, error } = await supabaseClient
+        .from("ev_instincts")
+        .select("*")
+        .order("priority", { ascending: false });
+
+      if (error) throw error;
+
+      const rows = (data || []);
+
+      let html = '';
+      html += '<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">' +
+        '<h3 style="margin: 0; font-size: 1rem;">⚡ 本能库（' + rows.length + ' 条）</h3>' +
+        '<div style="display: flex; gap: 4px;">' +
+        '<button id="vaInstinctsAddBtn" class="toolbar-btn btn-primary" style="font-size: 0.82rem;">＋ 新增</button>' +
+        '<button id="vaInstinctsRefreshBtn" class="toolbar-btn btn-secondary" style="font-size: 0.82rem;">⟳ 刷新</button>' +
+        '</div></div>';
+
+      html += '<div style="padding: 12px; border-left: 3px solid var(--primary); font-size: 0.82rem; background: var(--bg-secondary); margin-bottom: 14px;">' +
+        '每条规则就是一句自然语言描述，LLM 会在对话中自动感知并反应。无需写正则或编程。</div>';
+
+      if (rows.length === 0) {
+        html += '<p style="color: var(--text-secondary); font-size: 0.82rem; padding: 8px;">暂无本能规则</p>';
+      } else {
+        html += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+        for (const r of rows) {
+          html += '<div style="padding: 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-secondary);">' +
+            '<div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">' +
+            '<span style="font-weight: 600; font-size: 0.84rem; min-width: 80px;">名称</span>' +
+            '<input class="va-instinct-name" data-id="' + r.id + '" value="' + this._escAttr(r.name || '') + '" style="flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.82rem; background: transparent; color: var(--text);" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+            '<span style="font-size: 0.82rem; min-width: 50px;">优先级</span>' +
+            '<input class="va-instinct-pri" data-id="' + r.id + '" type="number" value="' + (r.priority || 0) + '" style="width: 50px; padding: 4px; border: 1px solid transparent; border-radius: 3px; font-size: 0.78rem; background: transparent; color: var(--text); text-align: center;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' +
+            '</div>' +
+            '<div style="display: flex; gap: 8px; align-items: center;">' +
+            '<span style="font-size: 0.82rem; min-width: 80px;">描述</span>' +
+            '<textarea class="va-instinct-desc" data-id="' + r.id + '" style="flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 3px; font-size: 0.8rem; background: transparent; color: var(--text); min-height: 28px; resize: vertical;" onfocus="this.style.borderColor=\'var(--primary)\';this.style.background=\'var(--bg)\'" onblur="this.style.borderColor=\'transparent\';this.style.background=\'transparent\'">' + this._esc(r.description || '') + '</textarea>' +
+            '<label style="font-size: 0.78rem; white-space: nowrap;"><input type="checkbox" ' + (r.enabled ? 'checked' : '') + ' data-va-instinct-enabled="' + r.id + '"> 启用</label>' +
+            '<button class="toolbar-btn btn-primary" style="padding: 2px 8px; font-size: 0.72rem;" data-va-save-instinct="' + r.id + '">保存</button>' +
+            '<button class="toolbar-btn btn-danger" style="padding: 2px 6px; font-size: 0.72rem;" data-va-del-instinct="' + r.id + '">删</button>' +
+            '</div></div>';
+        }
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+
+      document.getElementById("vaInstinctsRefreshBtn").addEventListener("click", () => this.renderVAInstincts());
+
+      document.getElementById("vaInstinctsAddBtn").addEventListener("click", async () => {
+        try {
+          await supabaseClient.from("ev_instincts").insert({
+            name: "新本能",
+            description: "用自然语言描述触发场景和反应方式…",
+            action_type: "system_prompt",
+            priority: 99,
+            mode: "both",
+            enabled: true,
+          });
+          this.showToast("已新增", "success");
+          this.renderVAInstincts();
+        } catch (e) {
+          this.showToast("新增失败: " + e.message, "error");
+        }
+      });
+
+      container.querySelectorAll("[data-va-save-instinct]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = parseInt(btn.dataset.vaSaveInstinct);
+          const fields = { action_type: "system_prompt", mode: "both" };
+          const nameEl = container.querySelector(`.va-instinct-name[data-id="${id}"]`);
+          const descEl = container.querySelector(`.va-instinct-desc[data-id="${id}"]`);
+          const priEl = container.querySelector(`.va-instinct-pri[data-id="${id}"]`);
+          const enabledEl = container.querySelector(`[data-va-instinct-enabled="${id}"]`);
+          if (nameEl) fields.name = nameEl.value;
+          if (descEl) fields.description = descEl.value;
+          if (priEl) fields.priority = parseInt(priEl.value) || 0;
+          if (enabledEl) fields.enabled = enabledEl.checked;
+          try {
+            await supabaseClient.from("ev_instincts").update(fields).eq("id", id);
+            this.showToast("保存成功", "success");
+          } catch (e) {
+            this.showToast("保存失败: " + e.message, "error");
+          }
+        });
+      });
+
+      container.querySelectorAll("[data-va-del-instinct]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const id = parseInt(btn.dataset.vaDelInstinct);
+          if (!confirm("确认删除这条本能规则？")) return;
+          try {
+            await supabaseClient.from("ev_instincts").delete().eq("id", id);
+            this.showToast("已删除", "success");
+            this.renderVAInstincts();
+          } catch (e) {
+            this.showToast("删除失败: " + e.message, "error");
+          }
+        });
+      });
+
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">加载失败: ' + this._esc(e.message) + "</p>";
+    }
+  }
+
+  // 辅助：HTML属性转义
+  _escAttr(s) {
+    if (!s) return "";
+    return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/'/g, "&#39;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // 调用本地 chat-proxy 总结对话
+  async _summaryVALogs(logs) {
+    const conversations = logs.map((l, i) => `${i + 1}. 用户: ${l.user}\n   依维: ${l.ai}`).join("\n\n");
+    const analysisPrompt = `你是一个对话质量分析师。下面是依维（展馆智能助手）和用户的对话记录。请分析其中**依维回答不像人的地方**，按以下格式输出：
+
+## 发现的问题
+逐条列出，每条格式：问题类型 | 具体表现 | 改进方向
+
+${conversations}
+
+请直接用中文输出分析结果，不要客套开场白。`;
+    
+    // 用 fetch 通过本地代理调 DeepSeek
+    const baseUrl = window.location.origin;
+    const resp = await fetch(baseUrl + "/.netlify/functions/chat-proxy", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: analysisPrompt,
+        stream: false,
+      }),
+    });
+    if (!resp.ok) throw new Error("请求失败: " + resp.status);
+    const json = await resp.json();
+    return json.choices?.[0]?.message?.content || json.content || json.message || JSON.stringify(json);
+  }
+
+  // ============ 每日沉淀 ============
+  async runVADailySummary() {
+    if (!supabaseClient) {
+      this.showToast("Supabase 未连接", "error");
+      return;
+    }
+    this.showToast("正在分析今天的对话...", "info");
+    // 先切换到情感趋势容器显示结果
+    const container = document.getElementById("vaEmotionContainer");
+    // 确保情感趋势容器可见
+    const allContainers = ["vaKnowledgeContainer", "vaPersonalityContainer", "vaBehaviorContainer", "vaVerificationContainer", "vaPrecipRulesContainer", "vaMemoryContainer", "vaErrorsContainer", "vaEmotionContainer", "vaLogsContainer", "vaFunctionsContainer", "vaInstinctsContainer"];
+    const allTabs = ["vaTabKnowledge", "vaTabPersonality", "vaTabBehavior", "vaTabVerification", "vaTabPrecipRules", "vaTabMemory", "vaTabErrors", "vaTabEmotion", "vaTabLogs", "vaTabFunctions", "vaTabInstincts"];
+    allContainers.forEach((c) => { document.getElementById(c).style.display = "none"; });
+    container.style.display = "";
+    allTabs.forEach((t) => { document.getElementById(t).className = "toolbar-btn btn-secondary"; });
+    document.getElementById("vaTabEmotion").className = "toolbar-btn btn-primary";
+
+    container.innerHTML = '<p style="color: var(--text-secondary);">正在调用 AI 分析...</p>';
+
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const { data: logs } = await supabaseClient
+        .from("ev_chat_logs")
+        .select("user_message, ai_response")
+        .gte("created_at", today)
+        .order("created_at", { ascending: false })
+        .limit(200);
+      const logCount = logs?.length || 0;
+      if (logCount === 0) {
+        container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">今天暂无对话记录</div>';
+        this.showToast("今天暂无对话记录", "info");
+        return;
+      }
+
+      // 加载沉淀规则
+      const { data: rules } = await supabaseClient
+        .from("ev_precipitation_rules")
+        .select("*")
+        .order("priority", { ascending: true });
+
+      // 构建分析提示
+      const conversations = logs.map((l, i) => `${i + 1}. 用户: ${l.user_message}\n   依维: ${l.ai_response}`).join("\n\n");
+      let analysisPrompt = '你是依维（展馆智能助手）的自我反思系统。请分析今天的对话记录，从以下维度总结：\n\n';
+      if (rules && rules.length > 0) {
+        for (const r of rules) {
+          analysisPrompt += `- **${r.dimension}**：${r.prompt || '请分析相关内容'}\n`;
+        }
+      } else {
+        analysisPrompt += '- **知识沉淀**：对话中出现了哪些值得记录的新知识？\n- **情感趋势**：用户的整体情绪如何？\n- **改进方向**：依维有哪些回答需要改进？\n';
+      }
+      analysisPrompt += `\n请按以下格式输出（每条一行，用 | 分隔）：\n维度 | 发现内容 | 建议操作（写入哪个表，如 knowledge/memory/behavior/emotion）\n\n对话记录：\n${conversations}\n\n请直接输出分析结果。`;
+
+      const baseUrl = window.location.origin;
+      const resp = await fetch(baseUrl + "/.netlify/functions/chat-proxy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          messages: [{ role: "user", content: analysisPrompt }],
+          stream: false,
+        }),
+      });
+      if (!resp.ok) throw new Error("AI 请求失败: " + resp.status);
+      const json = await resp.json();
+      const aiResult = json.choices?.[0]?.message?.content || json.content || json.message || '';
+
+      // 解析 AI 结果
+      const lines = aiResult.split("\n").filter((l) => l.trim() && (l.includes("|") || l.includes("维度")));
+      const items = [];
+      for (const line of lines) {
+        const parts = line.split("|").map((s) => s.trim());
+        if (parts.length >= 3 && !parts[0].includes("维度")) {
+          items.push({ dimension: parts[0], content: parts[1], target: parts[2] || '' });
+        }
+      }
+
+      // 保存情感趋势记录
+      await supabaseClient.from("ev_emotion_log").insert({ date: today, summary: aiResult.substring(0, 500) });
+
+      // 渲染审核界面
+      let html = '<div style="padding: 16px; border: 2px solid var(--primary); border-radius: 6px; margin-bottom: 16px; background: var(--bg-secondary);">' +
+        '<h3 style="margin: 0 0 8px;">🌅 每日沉淀 · ' + today + '</h3>' +
+        '<p style="margin: 0; font-size: 0.84rem; color: var(--text-secondary);">共分析 ' + logCount + ' 轮对话，AI 发现 ' + items.length + ' 条可沉淀内容。</p>' +
+        '</div>';
+
+      html += '<div style="margin-bottom: 12px; display: flex; gap: 8px;">' +
+        '<button id="vaPrecipSelectAll" class="toolbar-btn btn-secondary" style="font-size: 0.78rem;">☑ 全选</button>' +
+        '<button id="vaPrecipDeselectAll" class="toolbar-btn btn-secondary" style="font-size: 0.78rem;">☐ 取消全选</button>' +
+        '<span style="flex: 1;"></span>' +
+        '<button id="vaPrecipDistributeBtn" class="toolbar-btn btn-primary" style="border-radius: 3px;">📤 分发选中项到各库</button>' +
+        '</div>';
+
+      if (items.length === 0) {
+        html += '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">AI 未发现需要沉淀的内容，或请检查 AI 输出格式。</div>' +
+          '<div style="padding: 16px; border: 1px solid var(--border); border-radius: 6px; margin-top: 12px; white-space: pre-wrap; font-size: 0.82rem; line-height: 1.6;">' + this._esc(aiResult) + '</div>';
+      } else {
+        html += '<div style="display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px;">';
+        for (let i = 0; i < items.length; i++) {
+          const item = items[i];
+          html += '<div style="padding: 10px 14px; border: 1px solid var(--border); border-radius: 6px; display: flex; gap: 12px; align-items: flex-start;">' +
+            '<input type="checkbox" class="va-precip-check" data-idx="' + i + '" checked style="margin-top: 4px;">' +
+            '<div style="flex: 1;">' +
+            '<div style="font-weight: 600; font-size: 0.83rem; margin-bottom: 4px;">' + this._esc(item.dimension) + '</div>' +
+            '<div style="font-size: 0.8rem; color: var(--text); margin-bottom: 4px;">' + this._esc(item.content) + '</div>' +
+            '<div style="font-size: 0.75rem; color: var(--text-secondary);">→ 建议写入：<strong>' + this._esc(item.target || '待定') + '</strong></div>' +
+            '</div></div>';
+        }
+        html += '</div>';
+        // 原始 AI 输出
+        html += '<details style="margin-top: 12px;"><summary style="cursor: pointer; font-size: 0.8rem; color: var(--text-secondary);">查看 AI 原始输出</summary>' +
+          '<div style="padding: 12px; border: 1px solid var(--border); border-radius: 4px; margin-top: 8px; white-space: pre-wrap; font-size: 0.8rem; line-height: 1.6;">' + this._esc(aiResult) + '</div></details>';
+      }
+
+      container.innerHTML = html;
+
+      // 绑定全选/取消
+      const selectAllBtn = document.getElementById("vaPrecipSelectAll");
+      const deselectAllBtn = document.getElementById("vaPrecipDeselectAll");
+      if (selectAllBtn) {
+        selectAllBtn.addEventListener("click", () => {
+          container.querySelectorAll(".va-precip-check").forEach((cb) => { cb.checked = true; });
+        });
+      }
+      if (deselectAllBtn) {
+        deselectAllBtn.addEventListener("click", () => {
+          container.querySelectorAll(".va-precip-check").forEach((cb) => { cb.checked = false; });
+        });
+      }
+
+      // 绑定分发按钮
+      const distributeBtn = document.getElementById("vaPrecipDistributeBtn");
+      if (distributeBtn) {
+        distributeBtn.addEventListener("click", async () => {
+          const checks = container.querySelectorAll(".va-precip-check:checked");
+          if (checks.length === 0) { this.showToast("请先勾选要分发的项目", "error"); return; }
+
+          const selectedItems = [];
+          checks.forEach((cb) => {
+            const idx = parseInt(cb.getAttribute("data-idx"));
+            if (idx >= 0 && idx < items.length) {
+              selectedItems.push(items[idx]);
+            }
+          });
+
+          distributeBtn.textContent = "分发中...";
+          distributeBtn.disabled = true;
+
+          try {
+            const results = [];
+            for (const item of selectedItems) {
+              const target = (item.target || '').toLowerCase();
+              if (target.includes("knowledge") || target.includes("知识")) {
+                await supabaseClient.from("ev_knowledge_base").insert({
+                  content: `[${today} 每日沉淀] ${item.content}`,
+                  version: 0,
+                });
+                results.push("知识库 ✓");
+              } else if (target.includes("memory") || target.includes("记忆")) {
+                await supabaseClient.from("ev_user_memory").insert({
+                  memory_key: item.dimension,
+                  memory_value: item.content,
+                  memory_summary: item.content.substring(0, 100),
+                });
+                results.push("记忆库 ✓");
+              } else if (target.includes("behavior") || target.includes("行为")) {
+                await supabaseClient.from("ev_behavior").insert({
+                  layer: "execute",
+                  behavior_key: item.dimension,
+                  behavior_value: item.content,
+                  sort: 99,
+                });
+                results.push("行为库 ✓");
+              } else if (target.includes("emotion") || target.includes("情感")) {
+                results.push("情感趋势(已保存) ✓");
+              } else if (target.includes("error") || target.includes("错误")) {
+                await supabaseClient.from("ev_errors").insert({
+                  error_type: item.dimension,
+                  fix_suggest: item.content,
+                });
+                results.push("错误库 ✓");
+              } else if (target.includes("personality") || target.includes("人格")) {
+                results.push("人格库(请手动添加) ⚠");
+              } else {
+                // 默认写入记忆库
+                await supabaseClient.from("ev_user_memory").insert({
+                  memory_key: item.dimension,
+                  memory_value: item.content,
+                  memory_summary: item.content.substring(0, 100),
+                });
+                results.push("记忆库(默认) ✓");
+              }
+            }
+            this.showToast("分发完成！" + results.join(", "), "success");
+            distributeBtn.textContent = "📤 分发选中项到各库";
+            distributeBtn.disabled = false;
+          } catch (e) {
+            this.showToast("分发失败: " + e.message, "error");
+            distributeBtn.textContent = "📤 分发选中项到各库";
+            distributeBtn.disabled = false;
+          }
+        });
+      }
+
+    } catch (e) {
+      container.innerHTML = '<p style="color: var(--danger);">每日沉淀失败: ' + this._esc(e.message) + '</p>';
+      this.showToast("每日沉淀失败: " + e.message, "error");
+    }
+  }
+
+  // ============ 工具方法 ============
+
+  _esc(str) {
+    if (!str && str !== 0) return "";
+    var d = document.createElement("div");
+    d.appendChild(document.createTextNode(str));
+    return d.innerHTML;
+  }
+
+  _fmtDT(val) {
+    if (!val) return "-";
+    try {
+      var d = new Date(val);
+      return (
+        d.getFullYear() +
+        "-" +
+        String(d.getMonth() + 1).padStart(2, "0") +
+        "-" +
+        String(d.getDate()).padStart(2, "0") +
+        " " +
+        String(d.getHours()).padStart(2, "0") +
+        ":" +
+        String(d.getMinutes()).padStart(2, "0")
+      );
+    } catch (e) {
+      return val;
+    }
   }
 }
 

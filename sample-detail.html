@@ -25,6 +25,9 @@
           </div>
           <div class="detail-divider"></div>
           <div class="detail-body" id="detailBody"></div>
+          <div id="mpLaunch" style="display:none;padding:16px 0 0 0">
+            <a id="mpLaunchBtn" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;font-size:16px;padding:12px;border-radius:8px;background:linear-gradient(180deg,#FF8A5C,#FF6B35);color:#fff;font-weight:600;">进入小程序查看详情</a>
+          </div>
         </div>
       </div>
     </div>
@@ -392,6 +395,29 @@
           }
         }
 
+        function loadMpLaunchBtn() {
+          if (!supabaseClient) return;
+          supabaseClient
+            .from("settings")
+            .select("value")
+            .eq("key", "miniprogramScheme")
+            .maybeSingle()
+            .then(function (res) {
+              if (
+                !res.error &&
+                res.data &&
+                res.data.value &&
+                res.data.value.openlink
+              ) {
+                var container = document.getElementById("mpLaunch");
+                var btn = document.getElementById("mpLaunchBtn");
+                btn.href = res.data.value.openlink;
+                container.style.display = "block";
+              }
+            })
+            .catch(function () {});
+        }
+
         if (sample) {
           if (
             supabaseClient &&
@@ -410,6 +436,7 @@
             }
           }
           renderSample(sample, projects);
+          loadMpLaunchBtn();
         } else if (supabaseClient) {
           supabaseClient
             .from("samples")
@@ -445,6 +472,7 @@
                     ps = [fromSnakeCase(pres.data)];
                   }
                   renderSample(s, ps);
+                  loadMpLaunchBtn();
                 });
             })
             .catch(function () {

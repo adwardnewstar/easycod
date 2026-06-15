@@ -1045,6 +1045,89 @@ a:hover {
   padding-bottom: 80px;
 }
 
+/* 第3种样式 - 旋转标签 */
+.label-type-option {
+  padding: 8px 0;
+}
+
+.label-type-option label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.label-type-option input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.label-type-option + .label-type-option {
+  border-top: 1px solid var(--border);
+}
+
+.print-label-extra {
+  width: 2.25cm;
+  background: #1d1d1f;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 12px 4px;
+  flex-shrink: 0;
+  gap: 10px;
+}
+
+.extra-qr canvas {
+  display: block;
+  background: #fff;
+  border-radius: 3px;
+  width: 70px;
+  height: 70px;
+  transform: rotate(90deg);
+}
+
+.extra-divider {
+  width: 70px;
+  height: 5px;
+  border-radius: 5px;
+  flex-shrink: 0;
+}
+
+.extra-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 3px;
+  width: 250px;
+  height: 70px;
+  position: static;
+  margin-top: 90px;
+  margin-bottom: 90px;
+  text-align: left;
+  transform: rotate(90deg);
+  transform-origin: center center;
+  flex-shrink: 0;
+}
+
+.extra-info-line {
+  font-size: 0.78rem;
+  color: #fff;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.extra-info-line .extra-label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .print-toolbar {
   display: flex;
   align-items: center;
@@ -2018,6 +2101,13 @@ a:hover {
     border-radius: 999px;
   }
 
+  .print-label-extra {
+    background: #1d1d1f !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+    border-radius: 10px;
+  }
+
   .print-label-header {
     color: #fff !important;
     border-bottom-color: #fff !important;
@@ -2455,4 +2545,26 @@ a:hover {
 }
 
 /* Project search input */
+
+/* ===== 流程编辑器 ===== */
+.workflow-flow-chain {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.workflow-flow-chain::-webkit-scrollbar {
+  height: 4px;
+}
+.workflow-flow-chain::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+
+/* ===== 审批进度节点着色 ===== */
+.approval-flow {
+  scrollbar-width: thin;
+}
+.approval-flow::-webkit-scrollbar {
+  height: 4px;
+}
+
 /* ===== Loading Overlay ===== */

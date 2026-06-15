@@ -8,7 +8,7 @@
     />
     <title>材料样板管理系统</title>
     <link rel="icon" type="image/jpeg" href="src/icon/logo.jpg" />
-    <link rel="stylesheet" href="src/css/style.css?v=4" />
+    <link rel="stylesheet" href="src/css/style.css?v=5" />
   </head>
   <body>
     <div id="toastContainer" class="toast-container"></div>
@@ -39,16 +39,6 @@
               Login
             </button>
           </form>
-
-          <div style="margin-top: 16px; text-align: center">
-            <button
-              id="demoLoginBtn"
-              class="btn btn-secondary btn-block"
-              style="display: none"
-            >
-              演示模式（无需账号）
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -71,6 +61,10 @@
           <button id="navOrders" class="sidebar-link">订单管理</button>
           <button id="navApply" class="sidebar-link">申请管理</button>
           <button id="navClock" class="sidebar-link">打卡管理</button>
+          <button id="navApprovalUsers" class="sidebar-link">审批人管理</button>
+          <button id="navWorkflows" class="sidebar-link">流程编辑</button>
+          <button id="navApprovalRecords" class="sidebar-link">审批记录</button>
+          <button id="navVoiceAssistant" class="sidebar-link">语音助手</button>
           <button id="logoutBtn" class="sidebar-link sidebar-logout">
             退出
           </button>
@@ -392,6 +386,85 @@
             </div>
             <div id="clockContainer"></div>
           </div>
+
+          <!-- 审批人管理 -->
+          <div id="approvalUsersSection" class="page-section">
+            <div class="section-header">
+              <h2>审批人管理</h2>
+              <button
+                id="refreshApprovalUsersBtn"
+                class="toolbar-btn btn-secondary"
+              >
+                ⟳ 刷新
+              </button>
+            </div>
+            <div style="margin-bottom: 12px">
+              <button id="addApprovalUserBtn" class="toolbar-btn btn-primary">
+                + 添加审批人
+              </button>
+            </div>
+            <div id="approvalUsersContainer"></div>
+          </div>
+
+          <!-- 流程编辑 -->
+          <div id="workflowSection" class="page-section">
+            <div class="section-header">
+              <h2>流程编辑</h2>
+              <button id="refreshWorkflowsBtn" class="toolbar-btn btn-secondary">
+                ⟳ 刷新
+              </button>
+            </div>
+            <div id="workflowContainer"></div>
+          </div>
+
+          <!-- 审批记录 -->
+          <div id="approvalRecordsSection" class="page-section">
+            <div class="section-header">
+              <h2>审批记录</h2>
+              <button
+                id="refreshApprovalRecordsBtn"
+                class="toolbar-btn btn-secondary"
+              >
+                ⟳ 刷新
+              </button>
+            </div>
+            <div id="approvalRecordsContainer"></div>
+          </div>
+
+          <!-- 语音助手管理 - 依维五库 -->
+          <div id="voiceAssistantSection" class="page-section">
+            <div class="section-header">
+              <h2>语音助手 · 依维（Evi）</h2>
+            </div>
+            <div class="table-filters" style="gap: 4px; margin-bottom: 16px; flex-wrap: wrap;">
+              <button id="vaTabKnowledge" class="toolbar-btn btn-primary" style="border-radius: 3px;">📚 知识库</button>
+              <button id="vaTabPersonality" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🪪 人格库(E)</button>
+              <button id="vaTabBehavior" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🛡️ 行为库(E)</button>
+              <button id="vaTabVerification" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🔍 核验层(E)</button>
+              <button id="vaTabPrecipRules" class="toolbar-btn btn-secondary" style="border-radius: 3px;">📐 沉淀规则(E)</button>
+              <button id="vaTabMemory" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🧠 记忆库</button>
+              <button id="vaTabErrors" class="toolbar-btn btn-secondary" style="border-radius: 3px;">❌ 错误库</button>
+              <button id="vaTabEmotion" class="toolbar-btn btn-secondary" style="border-radius: 3px;">💗 情感趋势</button>
+              <button id="vaTabLogs" class="toolbar-btn btn-secondary" style="border-radius: 3px;">📋 对话日志</button>
+              <button id="vaTabFunctions" class="toolbar-btn btn-secondary" style="border-radius: 3px;">⚙️ 函数技能(E)</button>
+          <button id="vaTabInstincts" class="toolbar-btn btn-secondary" style="border-radius: 3px;">⚡ 本能库(E)</button>
+              <span style="flex: 1"></span>
+              <button id="vaDailySummary" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🌅 每日沉淀</button>
+              <button id="vaRefreshBtn" class="toolbar-btn btn-secondary">⟳ 刷新</button>
+            </div>
+            <div id="vaKnowledgeContainer"></div>
+            <div id="vaPersonalityContainer" style="display: none;"></div>
+            <div id="vaBehaviorContainer" style="display: none;"></div>
+            <div id="vaVerificationContainer" style="display: none;"></div>
+            <div id="vaPrecipRulesContainer" style="display: none;"></div>
+            <div id="vaMemoryContainer" style="display: none;"></div>
+            <div id="vaErrorsContainer" style="display: none;"></div>
+            <div id="vaEmotionContainer" style="display: none;"></div>
+            <div id="vaLogsContainer" style="display: none;"></div>
+            <div id="vaFunctionsContainer" style="display: none;"></div>
+        <div id="vaInstinctsContainer" style="display: none;"></div>
+          </div>
+
         </div>
       </main>
     </div>
@@ -663,6 +736,40 @@
 
     <div class="modal-overlay" id="labelPreviewModal"></div>
 
+    <!-- 批量打印标签类型选择弹窗 -->
+    <div class="modal-overlay" id="labelTypeModal">
+      <div class="modal" style="max-width: 380px;">
+        <div class="modal-header">
+          <h3>选择打印标签</h3>
+          <button class="modal-close" id="labelTypeModalClose">&times;</button>
+        </div>
+        <div class="modal-body" style="padding: 20px 24px;">
+          <div class="label-type-option">
+            <label>
+              <input type="checkbox" id="labelType1" checked />
+              <span>标签 1（标准信息 + 二维码）</span>
+            </label>
+          </div>
+          <div class="label-type-option">
+            <label>
+              <input type="checkbox" id="labelType2" checked />
+              <span>标签 2（竖向编码胶囊）</span>
+            </label>
+          </div>
+          <div class="label-type-option">
+            <label>
+              <input type="checkbox" id="labelType3" checked />
+              <span>标签 3（旋转二维码 + 型号编号）</span>
+            </label>
+          </div>
+        </div>
+        <div class="modal-footer" style="padding: 0 24px 20px; display: flex; gap: 8px; justify-content: flex-end;">
+          <button class="btn btn-secondary" id="labelTypeCancel">取消</button>
+          <button class="btn btn-primary" id="labelTypeConfirm">确认打印</button>
+        </div>
+      </div>
+    </div>
+
     <div class="modal-overlay" id="cropModal">
       <div class="crop-modal">
         <div class="crop-header">
@@ -771,6 +878,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-    <script src="src/js/app.js?v=4"></script>
+    <script src="src/js/app.js?v=5"></script>
   </body>
 </html>
