@@ -543,8 +543,9 @@ var BASE_PATH = (function () {
 })();
 
 function qrPageUrl(sampleId) {
+  // 始终指向生产环境 GitHub Pages，不受本地开发影响
   return (
-    window.location.origin + BASE_PATH + "sample-detail.html?id=" + sampleId
+    "https://adwardnewstar.github.io/easycod/sample-detail.html?id=" + sampleId
   );
 }
 
