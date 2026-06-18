@@ -8,7 +8,8 @@
     />
     <title>材料样板管理系统</title>
     <link rel="icon" type="image/jpeg" href="src/icon/logo.jpg" />
-    <link rel="stylesheet" href="src/css/style.css?v=5" />
+    <link rel="stylesheet" href="src/css/style.css?v=10" />
+    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
   </head>
   <body>
     <div id="toastContainer" class="toast-container"></div>
@@ -44,30 +45,182 @@
     </div>
 
     <div id="appSection" class="page-section">
-      <aside class="sidebar" id="sidebar">
-        <div
-          class="sidebar-title"
-          onclick="
-            window.app.showView('dashboard');
-            window.app.renderDashboard();
-          "
-        >
-          材料样板管理
+      <aside class="sidebar collapsed" id="sidebar">
+        <div class="sidebar-top-group">
+          <div class="sidebar-header">
+            <div
+              class="sidebar-logo"
+              onclick="
+                window.app.showView('dashboard');
+                window.app.renderDashboard();
+              "
+            >
+              <i class="ph ph-command sidebar-logo-icon"></i>
+              <span class="sidebar-title-text">EasySoft</span>
+            </div>
+            <button
+              class="sidebar-toggle"
+              id="sidebarToggle"
+              title="折叠侧边栏"
+            >
+              <i class="ph ph-sidebar-simple toggle-icon"></i>
+            </button>
+          </div>
+          <div class="nav-separator"></div>
+          <span class="sidebar-user" id="sidebarUser">
+            <i class="ph ph-user-circle sidebar-user-icon"></i>
+            <span class="sidebar-user-name"></span>
+          </span>
+          <div class="nav-separator"></div>
         </div>
         <nav class="sidebar-nav">
-          <span class="sidebar-user" id="sidebarUser"></span>
-          <button id="navProjects" class="sidebar-link active">类别</button>
-          <button id="infoBtn" class="sidebar-link">信息</button>
-          <button id="navOrders" class="sidebar-link">订单管理</button>
-          <button id="navApply" class="sidebar-link">申请管理</button>
-          <button id="navClock" class="sidebar-link">打卡管理</button>
-          <button id="navApprovalUsers" class="sidebar-link">审批人管理</button>
-          <button id="navWorkflows" class="sidebar-link">流程编辑</button>
-          <button id="navApprovalRecords" class="sidebar-link">审批记录</button>
-          <button id="navVoiceAssistant" class="sidebar-link">语音助手</button>
-          <button id="logoutBtn" class="sidebar-link sidebar-logout">
-            退出
-          </button>
+          <div class="sidebar-nav-scroll">
+            <!-- EasyCod -->
+            <div class="nav-group">
+              <button class="nav-group-header" data-group="easycod">
+                <span class="nav-group-label nav-group-label-expanded"
+                  >EasyCod</span
+                >
+                <span class="nav-group-label nav-group-label-collapsed"
+                  >Code</span
+                >
+                <i class="ph ph-caret-down group-arrow"></i>
+              </button>
+              <div class="nav-group-body" id="group-easycod">
+                <button id="navProjects" class="sidebar-link active">
+                  <span class="nav-link-text">样板类别</span>
+                  <i class="ph ph-list"></i>
+                </button>
+                <button id="infoBtn" class="sidebar-link">
+                  <span class="nav-link-text">信息控制</span>
+                  <i class="ph ph-contrast"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="nav-separator"></div>
+
+            <!-- EasyOrder -->
+            <div class="nav-group">
+              <button class="nav-group-header" data-group="easyorder">
+                <span class="nav-group-label nav-group-label-expanded"
+                  >EasyOrder</span
+                >
+                <span class="nav-group-label nav-group-label-collapsed"
+                  >Order</span
+                >
+                <i class="ph ph-caret-down group-arrow"></i>
+              </button>
+              <div class="nav-group-body" id="group-easyorder">
+                <button id="navOrders" class="sidebar-link">
+                  <span class="nav-link-text">订单信息</span>
+                  <i class="ph ph-list-numbers"></i>
+                </button>
+                <button id="navApply" class="sidebar-link">
+                  <span class="nav-link-text">申请汇总</span>
+                  <i class="ph ph-git-pull-request"></i>
+                </button>
+                <button id="navClock" class="sidebar-link">
+                  <span class="nav-link-text">打卡管理</span>
+                  <i class="ph ph-file-text"></i>
+                </button>
+                <button id="navSettings" class="sidebar-link">
+                  <span class="nav-link-text">相关设置</span>
+                  <i class="ph ph-gear"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="nav-separator"></div>
+
+            <!-- EasyProc -->
+            <div class="nav-group">
+              <button class="nav-group-header" data-group="easyproc">
+                <span class="nav-group-label nav-group-label-expanded"
+                  >EasyProc</span
+                >
+                <span class="nav-group-label nav-group-label-collapsed"
+                  >Proc</span
+                >
+                <i class="ph ph-caret-down group-arrow"></i>
+              </button>
+              <div class="nav-group-body" id="group-easyproc">
+                <button id="navApprovalUsers" class="sidebar-link">
+                  <span class="nav-link-text">账号权限</span>
+                  <i class="ph ph-person"></i>
+                </button>
+                <button id="navWorkflows" class="sidebar-link">
+                  <span class="nav-link-text">流程汇总</span>
+                  <i class="ph ph-table"></i>
+                </button>
+                <button id="navApprovalRecords" class="sidebar-link">
+                  <span class="nav-link-text">审批记录</span>
+                  <i class="ph ph-bell-ringing nav-icon-alert"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="nav-separator"></div>
+
+            <!-- EasyVoic -->
+            <div class="nav-group">
+              <button class="nav-group-header" data-group="easyvoic">
+                <span class="nav-group-label nav-group-label-expanded"
+                  >EasyVoic</span
+                >
+                <span class="nav-group-label nav-group-label-collapsed"
+                  >Voice</span
+                >
+                <i class="ph ph-caret-down group-arrow"></i>
+              </button>
+              <div class="nav-group-body" id="group-easyvoic">
+                <button id="navVoiceAssistant" class="sidebar-link">
+                  <span class="nav-link-text">语音助手</span>
+                  <i class="ph ph-archive"></i>
+                </button>
+              </div>
+            </div>
+
+            <div class="nav-separator"></div>
+
+            <!-- EasyPdf -->
+            <div class="nav-group">
+              <button class="nav-group-header" data-group="easypdf">
+                <span class="nav-group-label nav-group-label-expanded"
+                  >EasyPdf</span
+                >
+                <span class="nav-group-label nav-group-label-collapsed"
+                  >Pdf</span
+                >
+                <i class="ph ph-caret-down group-arrow"></i>
+              </button>
+              <div class="nav-group-body" id="group-easypdf">
+                <button id="navDocStore" class="sidebar-link">
+                  <span class="nav-link-text">文档存储</span>
+                  <i class="ph ph-laptop"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="sidebar-nav-bottom">
+            <div class="nav-separator"></div>
+
+            <button
+              id="navBottomSettings"
+              class="sidebar-link sidebar-settings"
+            >
+              <span class="nav-link-text">设置</span>
+              <i class="ph ph-gear"></i>
+            </button>
+
+            <div class="nav-separator"></div>
+
+            <button id="logoutBtn" class="sidebar-link sidebar-logout">
+              <span class="nav-link-text">退出</span>
+              <i class="ph ph-sign-out"></i>
+            </button>
+          </div>
         </nav>
       </aside>
 
@@ -410,7 +563,10 @@
           <div id="workflowSection" class="page-section">
             <div class="section-header">
               <h2>流程编辑</h2>
-              <button id="refreshWorkflowsBtn" class="toolbar-btn btn-secondary">
+              <button
+                id="refreshWorkflowsBtn"
+                class="toolbar-btn btn-secondary"
+              >
                 ⟳ 刷新
               </button>
             </div>
@@ -436,35 +592,111 @@
             <div class="section-header">
               <h2>语音助手 · 依维（Evi）</h2>
             </div>
-            <div class="table-filters" style="gap: 4px; margin-bottom: 16px; flex-wrap: wrap;">
-              <button id="vaTabKnowledge" class="toolbar-btn btn-primary" style="border-radius: 3px;">📚 知识库</button>
-              <button id="vaTabPersonality" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🪪 人格库(E)</button>
-              <button id="vaTabBehavior" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🛡️ 行为库(E)</button>
-              <button id="vaTabVerification" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🔍 核验层(E)</button>
-              <button id="vaTabPrecipRules" class="toolbar-btn btn-secondary" style="border-radius: 3px;">📐 沉淀规则(E)</button>
-              <button id="vaTabMemory" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🧠 记忆库</button>
-              <button id="vaTabErrors" class="toolbar-btn btn-secondary" style="border-radius: 3px;">❌ 错误库</button>
-              <button id="vaTabEmotion" class="toolbar-btn btn-secondary" style="border-radius: 3px;">💗 情感趋势</button>
-              <button id="vaTabLogs" class="toolbar-btn btn-secondary" style="border-radius: 3px;">📋 对话日志</button>
-              <button id="vaTabFunctions" class="toolbar-btn btn-secondary" style="border-radius: 3px;">⚙️ 函数技能(E)</button>
-          <button id="vaTabInstincts" class="toolbar-btn btn-secondary" style="border-radius: 3px;">⚡ 本能库(E)</button>
+            <div
+              class="table-filters"
+              style="gap: 4px; margin-bottom: 16px; flex-wrap: wrap"
+            >
+              <button
+                id="vaTabKnowledge"
+                class="toolbar-btn btn-primary"
+                style="border-radius: 3px"
+              >
+                📚 知识库
+              </button>
+              <button
+                id="vaTabPersonality"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                🪪 人格库(E)
+              </button>
+              <button
+                id="vaTabBehavior"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                🛡️ 行为库(E)
+              </button>
+              <button
+                id="vaTabVerification"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                🔍 核验层(E)
+              </button>
+              <button
+                id="vaTabPrecipRules"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                📐 沉淀规则(E)
+              </button>
+              <button
+                id="vaTabMemory"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                🧠 记忆库
+              </button>
+              <button
+                id="vaTabErrors"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                ❌ 错误库
+              </button>
+              <button
+                id="vaTabEmotion"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                💗 情感趋势
+              </button>
+              <button
+                id="vaTabLogs"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                📋 对话日志
+              </button>
+              <button
+                id="vaTabFunctions"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                ⚙️ 函数技能(E)
+              </button>
+              <button
+                id="vaTabInstincts"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                ⚡ 本能库(E)
+              </button>
               <span style="flex: 1"></span>
-              <button id="vaDailySummary" class="toolbar-btn btn-secondary" style="border-radius: 3px;">🌅 每日沉淀</button>
-              <button id="vaRefreshBtn" class="toolbar-btn btn-secondary">⟳ 刷新</button>
+              <button
+                id="vaDailySummary"
+                class="toolbar-btn btn-secondary"
+                style="border-radius: 3px"
+              >
+                🌅 每日沉淀
+              </button>
+              <button id="vaRefreshBtn" class="toolbar-btn btn-secondary">
+                ⟳ 刷新
+              </button>
             </div>
             <div id="vaKnowledgeContainer"></div>
-            <div id="vaPersonalityContainer" style="display: none;"></div>
-            <div id="vaBehaviorContainer" style="display: none;"></div>
-            <div id="vaVerificationContainer" style="display: none;"></div>
-            <div id="vaPrecipRulesContainer" style="display: none;"></div>
-            <div id="vaMemoryContainer" style="display: none;"></div>
-            <div id="vaErrorsContainer" style="display: none;"></div>
-            <div id="vaEmotionContainer" style="display: none;"></div>
-            <div id="vaLogsContainer" style="display: none;"></div>
-            <div id="vaFunctionsContainer" style="display: none;"></div>
-        <div id="vaInstinctsContainer" style="display: none;"></div>
+            <div id="vaPersonalityContainer" style="display: none"></div>
+            <div id="vaBehaviorContainer" style="display: none"></div>
+            <div id="vaVerificationContainer" style="display: none"></div>
+            <div id="vaPrecipRulesContainer" style="display: none"></div>
+            <div id="vaMemoryContainer" style="display: none"></div>
+            <div id="vaErrorsContainer" style="display: none"></div>
+            <div id="vaEmotionContainer" style="display: none"></div>
+            <div id="vaLogsContainer" style="display: none"></div>
+            <div id="vaFunctionsContainer" style="display: none"></div>
+            <div id="vaInstinctsContainer" style="display: none"></div>
           </div>
-
         </div>
       </main>
     </div>
@@ -738,12 +970,12 @@
 
     <!-- 批量打印标签类型选择弹窗 -->
     <div class="modal-overlay" id="labelTypeModal">
-      <div class="modal" style="max-width: 380px;">
+      <div class="modal" style="max-width: 380px">
         <div class="modal-header">
           <h3>选择打印标签</h3>
           <button class="modal-close" id="labelTypeModalClose">&times;</button>
         </div>
-        <div class="modal-body" style="padding: 20px 24px;">
+        <div class="modal-body" style="padding: 20px 24px">
           <div class="label-type-option">
             <label>
               <input type="checkbox" id="labelType1" checked />
@@ -763,9 +995,19 @@
             </label>
           </div>
         </div>
-        <div class="modal-footer" style="padding: 0 24px 20px; display: flex; gap: 8px; justify-content: flex-end;">
+        <div
+          class="modal-footer"
+          style="
+            padding: 0 24px 20px;
+            display: flex;
+            gap: 8px;
+            justify-content: flex-end;
+          "
+        >
           <button class="btn btn-secondary" id="labelTypeCancel">取消</button>
-          <button class="btn btn-primary" id="labelTypeConfirm">确认打印</button>
+          <button class="btn btn-primary" id="labelTypeConfirm">
+            确认打印
+          </button>
         </div>
       </div>
     </div>
@@ -878,6 +1120,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <script src="src/js/sidebar.js"></script>
     <script src="src/js/app.js?v=5"></script>
   </body>
 </html>
