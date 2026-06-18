@@ -426,6 +426,14 @@ a:hover {
   margin: 0 8px;
 }
 
+.sidebar.collapsed .sidebar-nav {
+  overflow-x: visible;
+}
+
+.sidebar.collapsed .sidebar-nav-scroll {
+  padding: 0;
+}
+
 .sidebar.collapsed .nav-group-header {
   justify-content: center;
   width: auto;

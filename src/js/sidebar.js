@@ -51,7 +51,7 @@ class Sidebar {
         const groupId = header.getAttribute("data-group");
         group.classList.toggle("collapsed");
         const saved = JSON.parse(
-          localStorage.getItem("navGroupStates") || "{}"
+          localStorage.getItem("navGroupStates") || "{}",
         );
         saved[groupId] = group.classList.contains("collapsed");
         localStorage.setItem("navGroupStates", JSON.stringify(saved));
@@ -59,9 +59,7 @@ class Sidebar {
 
       // 恢复上次状态
       const groupId = header.getAttribute("data-group");
-      const saved = JSON.parse(
-        localStorage.getItem("navGroupStates") || "{}"
-      );
+      const saved = JSON.parse(localStorage.getItem("navGroupStates") || "{}");
       if (saved[groupId] === true) {
         const group = header.closest(".nav-group");
         if (group) group.classList.add("collapsed");
@@ -82,8 +80,7 @@ class Sidebar {
 
   /** 根据用户权限显示/隐藏菜单项 */
   updateVisibility(user) {
-    const isAdmin =
-      user?.role === "admin" || user?.menuPermissions === null;
+    const isAdmin = user?.role === "admin" || user?.menuPermissions === null;
     const perms = user?.menuPermissions || {};
 
     const items = [
@@ -101,14 +98,13 @@ class Sidebar {
     items.forEach((item) => {
       const el = document.getElementById(item.id);
       if (!el) return;
-      el.style.display =
-        item.adminOnly
-          ? isAdmin
-            ? ""
-            : "none"
-          : isAdmin || perms[item.key]
-            ? ""
-            : "none";
+      el.style.display = item.adminOnly
+        ? isAdmin
+          ? ""
+          : "none"
+        : isAdmin || perms[item.key]
+          ? ""
+          : "none";
     });
   }
 
@@ -140,7 +136,7 @@ class Sidebar {
           ?.getAttribute("data-group");
         if (groupId) {
           const saved = JSON.parse(
-            localStorage.getItem("navGroupStates") || "{}"
+            localStorage.getItem("navGroupStates") || "{}",
           );
           saved[groupId] = false;
           localStorage.setItem("navGroupStates", JSON.stringify(saved));
