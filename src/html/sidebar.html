@@ -1,0 +1,137 @@
+<aside class="sidebar collapsed" id="sidebar">
+  <div class="sidebar-top-group">
+    <div class="sidebar-header">
+      <div
+        class="sidebar-logo"
+        onclick="
+          window.app.showView('dashboard');
+          window.app.dashboard.render();
+        "
+      >
+        <i class="ph ph-command sidebar-logo-icon"></i>
+        <span class="sidebar-title-text">EasySoft</span>
+      </div>
+      <button class="sidebar-toggle" id="sidebarToggle" title="折叠侧边栏">
+        <i class="ph ph-sidebar-simple toggle-icon"></i>
+      </button>
+    </div>
+    <div class="nav-separator"></div>
+    <div class="sidebar-user" id="sidebarUser">
+      <i class="ph ph-user-circle sidebar-user-icon"></i>
+      <span class="sidebar-user-name"></span>
+    </div>
+    <div class="nav-separator"></div>
+  </div>
+  <nav class="sidebar-nav">
+    <div class="sidebar-nav-scroll">
+      <!-- EasyCod -->
+      <div class="nav-group">
+        <button class="nav-group-header" data-group="easycod">
+          <span class="nav-group-label nav-group-label-expanded">EasyCod</span>
+          <span class="nav-group-label nav-group-label-collapsed">Cod</span>
+        </button>
+        <div class="nav-group-body" id="group-easycod">
+          <button id="navProjects" class="sidebar-link active">
+            <span class="nav-link-text">样板类别</span>
+            <i class="ph ph-list"></i>
+          </button>
+          <button id="infoBtn" class="sidebar-link">
+            <span class="nav-link-text">信息控制</span>
+            <i class="ph ph-sliders"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- EasyOrder -->
+      <div class="nav-group">
+        <button class="nav-group-header" data-group="easyorder">
+          <span class="nav-group-label nav-group-label-expanded"
+            >EasyOrder</span
+          >
+          <span class="nav-group-label nav-group-label-collapsed">Ord</span>
+        </button>
+        <div class="nav-group-body" id="group-easyorder">
+          <button id="navOrders" class="sidebar-link">
+            <span class="nav-link-text">订单信息</span>
+            <i class="ph ph-list-numbers"></i>
+          </button>
+          <button id="navApply" class="sidebar-link">
+            <span class="nav-link-text">申请汇总</span>
+            <i class="ph ph-git-pull-request"></i>
+          </button>
+          <button id="navClock" class="sidebar-link">
+            <span class="nav-link-text">打卡管理</span>
+            <i class="ph ph-file-text"></i>
+          </button>
+          <button id="navSettings" class="sidebar-link">
+            <span class="nav-link-text">相关设置</span>
+            <i class="ph ph-gear"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- EasyProc -->
+      <div class="nav-group">
+        <button class="nav-group-header" data-group="easyproc">
+          <span class="nav-group-label nav-group-label-expanded">EasyProc</span>
+          <span class="nav-group-label nav-group-label-collapsed">Pro</span>
+        </button>
+        <div class="nav-group-body" id="group-easyproc">
+          <button id="navApprovalUsers" class="sidebar-link">
+            <span class="nav-link-text">账号权限</span>
+            <i class="ph ph-person"></i>
+          </button>
+          <button id="navWorkflows" class="sidebar-link">
+            <span class="nav-link-text">流程汇总</span>
+            <i class="ph ph-table"></i>
+          </button>
+          <button id="navApprovalRecords" class="sidebar-link">
+            <span class="nav-link-text">审批记录</span>
+            <i class="ph ph-bell-ringing nav-icon-alert"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- EasyVoic -->
+      <div class="nav-group">
+        <button class="nav-group-header" data-group="easyvoic">
+          <span class="nav-group-label nav-group-label-expanded">EasyVoic</span>
+          <span class="nav-group-label nav-group-label-collapsed">Voi</span>
+        </button>
+        <div class="nav-group-body" id="group-easyvoic">
+          <button id="navVoiceAssistant" class="sidebar-link">
+            <span class="nav-link-text">语音助手</span>
+            <i class="ph ph-archive"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- EasyPdf -->
+      <div class="nav-group">
+        <button class="nav-group-header" data-group="easypdf">
+          <span class="nav-group-label nav-group-label-expanded">EasyPdf</span>
+          <span class="nav-group-label nav-group-label-collapsed">Pdf</span>
+        </button>
+        <div class="nav-group-body" id="group-easypdf">
+          <button id="navDocStore" class="sidebar-link">
+            <span class="nav-link-text">文档存储</span>
+            <i class="ph ph-laptop"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-nav-bottom">
+      <div class="nav-separator"></div>
+      <button id="navBottomSettings" class="sidebar-link sidebar-settings">
+        <span class="nav-link-text">设置</span>
+        <i class="ph ph-gear"></i>
+      </button>
+      <div class="nav-separator"></div>
+      <button id="logoutBtn" class="sidebar-link sidebar-logout">
+        <span class="nav-link-text">退出</span>
+        <i class="ph ph-sign-out"></i>
+      </button>
+    </div>
+  </nav>
+</aside>

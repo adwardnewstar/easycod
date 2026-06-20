@@ -1,6 +1,6 @@
 /**
  * Sidebar — 侧边栏独立模块
- * 负责折叠/展开、导航分组、权限可见性、视图激活态
+ * 负责加载 HTML、折叠/展开、导航分组、权限可见性、视图激活态
  */
 class Sidebar {
   constructor() {
@@ -17,6 +17,21 @@ class Sidebar {
     };
   }
 
+  /** 加载 sidebar.html 并注入到页面 */
+  async load(targetSelector = "#appSection") {
+    if (document.getElementById("sidebar")) return;
+    try {
+      const res = await fetch("src/html/sidebar.html?v=5");
+      const html = await res.text();
+      const target = document.querySelector(targetSelector);
+      if (target) {
+        target.insertAdjacentHTML("afterbegin", html);
+      }
+    } catch (err) {
+      console.error("Sidebar 加载失败:", err);
+    }
+  }
+
   /** 初始化：绑定事件 + 恢复折叠/分组状态 */
   init() {
     this._bindEvents();
@@ -30,6 +45,23 @@ class Sidebar {
     if (!sidebar) return;
     const isCollapsed = sidebar.classList.toggle("collapsed");
     localStorage.setItem("sidebarCollapsed", isCollapsed);
+    this._updateToggleIcon();
+  }
+
+  /** 同步折叠按钮图标与当前状态 */
+  _updateToggleIcon() {
+    const sidebar = document.getElementById("sidebar");
+    const icon = document.querySelector("#sidebarToggle .toggle-icon");
+    const btn = document.getElementById("sidebarToggle");
+    if (!sidebar || !icon || !btn) return;
+    const isCollapsed = sidebar.classList.contains("collapsed");
+    if (isCollapsed) {
+      icon.className = "ph ph-caret-double-right toggle-icon";
+      btn.title = "展开侧边栏";
+    } else {
+      icon.className = "ph ph-caret-double-left toggle-icon";
+      btn.title = "折叠侧边栏";
+    }
   }
 
   /** 恢复折叠状态 — HTML 默认折叠，只有用户明确展开过才展开 */
@@ -39,6 +71,7 @@ class Sidebar {
     if (localStorage.getItem("sidebarCollapsed") === "false") {
       sidebar.classList.remove("collapsed");
     }
+    this._updateToggleIcon();
   }
 
   /** 初始化导航分组：点击展开/折叠 + 恢复上次状态 */

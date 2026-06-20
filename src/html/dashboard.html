@@ -1,0 +1,79 @@
+<div id="dashboardSection" class="page-section">
+  <div id="dashboardContainer">
+    <!-- ===== 顶部栏 ===== -->
+    <div class="dash-topbar">
+      <div class="dash-search">
+        <i class="ph ph-magnifying-glass dash-search-icon"></i>
+        <input type="text" placeholder="搜索样板、订单..." />
+      </div>
+      <div class="dash-actions">
+        <i
+          class="ph ph-user-circle dash-avatar"
+          id="dashAvatar"
+          title="用户"
+        ></i>
+        <button class="dash-action-btn" id="dashSettingsBtn" title="设置">
+          <i class="ph ph-gear"></i>
+        </button>
+        <button class="dash-action-btn" id="dashLogoutBtn" title="退出登录">
+          <i class="ph ph-sign-out"></i>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== 欢迎区域 ===== -->
+    <div class="dash-welcome">
+      <div>
+        <h1 id="dashWelcomeH1">Hello，用户！</h1>
+        <p>这里是你的概况汇总表</p>
+      </div>
+      <div class="dash-clock" id="dashClock"></div>
+    </div>
+
+    <!-- ===== 主体双栏 ===== -->
+    <div class="dash-main">
+      <!-- 顶层行 -->
+      <div class="dash-top-row">
+        <!-- 左列 2×2 卡片 -->
+        <div class="dash-left">
+          <div class="dash-card-grid">
+            <div class="dash-card">
+              <div class="dash-card-value" id="dashCardVisits">0</div>
+              <div class="dash-card-divider"></div>
+              <div class="dash-card-label">到访人次</div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-card-value" id="dashInviteCode">------</div>
+              <div class="dash-card-divider"></div>
+              <div class="dash-card-label">今日邀请码</div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-card-value" id="dashCardCategories">0</div>
+              <div class="dash-card-divider"></div>
+              <div class="dash-card-label">品类种数</div>
+            </div>
+            <div class="dash-card">
+              <div class="dash-card-value" id="dashCardSamples">0</div>
+              <div class="dash-card-divider"></div>
+              <div class="dash-card-label">总样板数</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 右列 — 柱状图面板（JS 渲染） -->
+        <div class="dash-right-card" id="dashRightCard"></div>
+      </div>
+
+      <!-- ===== 底部区域 ===== -->
+      <div class="dash-footer">
+        <div class="dash-footer-right">
+          <div class="todo-table-wrap" id="dashTodoWrap"></div>
+          <div class="todo-heatmap-wrap" id="dashHeatmapWrap"></div>
+        </div>
+        <div class="dash-footer-left">
+          <div class="dash-charts-grid" id="dashDonutGrid"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

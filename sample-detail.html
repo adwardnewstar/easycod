@@ -6,9 +6,12 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
     />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>样板详情 - 材料样板管理系统</title>
     <link rel="icon" type="image/jpeg" href="src/icon/logo.jpg" />
-    <link rel="stylesheet" href="src/css/style.css?v=4" />
+    <link rel="stylesheet" href="src/css/style.css?v=5" />
   </head>
   <body>
     <div class="container" style="padding-top: 24px; padding-bottom: 40px">
@@ -127,6 +130,73 @@
         return saved;
       }
 
+      async function loadFieldVisibilityFromDB(sb) {
+        // 拉取失败时：所有可配置字段隐藏（只显示标签内容）
+        var hideAll = function () {
+          var allHidden = {
+            specs: "\u654F\u611F",
+            color: "\u654F\u611F",
+            material: "\u654F\u611F",
+            description: "\u654F\u611F",
+            image: "\u654F\u611F",
+          };
+          localStorage.setItem(
+            STORAGE_KEYS.fieldVisibility,
+            JSON.stringify(allHidden),
+          );
+        };
+        var setDefaults = function () {
+          var defs = {
+            specs: "\u9080\u8BF7",
+            color: "\u9080\u8BF7",
+            material: "\u9080\u8BF7",
+            description: "\u9080\u8BF7",
+            image: "\u9080\u8BF7",
+          };
+          localStorage.setItem(
+            STORAGE_KEYS.fieldVisibility,
+            JSON.stringify(defs),
+          );
+        };
+        if (!sb) {
+          hideAll();
+          return;
+        }
+        try {
+          var today = new Date().toISOString().split("T")[0];
+          var { data, error } = await sb
+            .from("daily_codes")
+            .select("field_visibility")
+            .eq("date", today)
+            .maybeSingle();
+          if (!error && data && data.field_visibility) {
+            var fv = data.field_visibility;
+            var merged = {
+              specs: "\u9080\u8BF7",
+              color: "\u9080\u8BF7",
+              material: "\u9080\u8BF7",
+              description: "\u9080\u8BF7",
+              image: "\u9080\u8BF7",
+            };
+            ["specs", "color", "material", "description", "image"].forEach(
+              function (k) {
+                if (fv[k]) merged[k] = fv[k];
+              },
+            );
+            localStorage.setItem(
+              STORAGE_KEYS.fieldVisibility,
+              JSON.stringify(merged),
+            );
+          } else {
+            // 查询成功但没有数据 → 使用默认值（全部"邀请"）
+            setDefaults();
+          }
+        } catch (e) {
+          // 拉取失败（网络/Supabase 不可达）→ 只显示标签内容
+          hideAll();
+        }
+      }
+
       function fromSnakeCase(obj) {
         var r = {};
         for (var k in obj) {
@@ -199,6 +269,9 @@
         }
 
         await fetchDailyCodeFromDB(supabaseClient);
+
+        // 从 Supabase 加载可见性设置（公共查询，每次扫码都拉最新配置）
+        await loadFieldVisibilityFromDB(supabaseClient);
 
         if (!sid) {
           loadingEl.style.display = "none";
@@ -274,12 +347,13 @@
               pub.push(f);
               return;
             }
-            var state = vis[f.key] || "邀请";
-            if (state === "显示") {
+            var state = vis[f.key] || "\u9080\u8BF7";
+            if (state === "\u663E\u793A") {
               pub.push(f);
-            } else if (state === "邀请") {
+            } else if (state === "\u9080\u8BF7") {
               inviteFields.push(f);
             }
+            // "敏感" → 不加入任何列表，完全不显示
           });
 
           function renderFields(list) {

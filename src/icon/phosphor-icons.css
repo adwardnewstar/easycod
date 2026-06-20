@@ -1,0 +1,49 @@
+/* Phosphor Icons — 完整字体 (v1.4.2) */
+@font-face {
+  font-family: "Phosphor";
+  src: url("./Phosphor.woff2") format("woff2");
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+.ph {
+  font-family: "Phosphor" !important;
+  font-style: normal;
+  font-weight: normal;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.ph.ph-archive:before { content: "\f24f"; }
+.ph.ph-arrow-clockwise:before { content: "\f267"; }
+.ph.ph-bell-ringing:before { content: "\f2d4"; }
+.ph.ph-caret-double-left:before { content: "\f317"; }
+.ph.ph-caret-double-right:before { content: "\f318"; }
+.ph.ph-command:before { content: "\f36c"; }
+.ph.ph-file-text:before { content: "\f3eb"; }
+.ph.ph-first-aid:before { content: "\f3dc"; }
+.ph.ph-folder:before { content: "\f40c"; }
+.ph.ph-funnel:before { content: "\f414"; }
+.ph.ph-gear:before { content: "\f42a"; }
+.ph.ph-git-pull-request:before { content: "\f43a"; }
+.ph.ph-laptop:before { content: "\f485"; }
+.ph.ph-list:before { content: "\f497"; }
+.ph.ph-list-checks:before { content: "\f496"; }
+.ph.ph-list-numbers:before { content: "\f49b"; }
+.ph.ph-magnifying-glass:before { content: "\f4a8"; }
+.ph.ph-pencil-simple:before { content: "\f4fe"; }
+.ph.ph-person:before { content: "\f516"; }
+.ph.ph-plus:before { content: "\f4d4"; }
+.ph.ph-printer:before { content: "\f534"; }
+.ph.ph-sidebar-simple:before { content: "\f580"; }
+.ph.ph-sign-out:before { content: "\f582"; }
+.ph.ph-sliders:before { content: "\f58c"; }
+.ph.ph-swatches:before { content: "\f5c5"; }
+.ph.ph-table:before { content: "\f5c9"; }
+.ph.ph-ticket:before { content: "\f5f1"; }
+.ph.ph-user-circle:before { content: "\f614"; }
+.ph.ph-users:before { content: "\f620"; }
