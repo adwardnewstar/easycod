@@ -1310,7 +1310,7 @@ class App {
     const session = Store.getSession();
     if (session && supabaseClient) {
       // 恢复 Supabase auth session，避免手机端 token 丢失导致 RLS 42501
-      this._restoreSupabaseSession(session);
+      await this._restoreSupabaseSession(session);
       this.user = session;
       this.uploadManager.setUserId(session?.id);
       // 并行：权限查询(DB网络) + UI渲染，不互相等待
@@ -1341,7 +1341,7 @@ class App {
   _restoreSupabaseSession(session) {
     if (!session._supabaseSession || !supabaseClient) return;
     try {
-      supabaseClient.auth.setSession({
+      await supabaseClient.auth.setSession({
         access_token: session._supabaseSession.access_token,
         refresh_token: session._supabaseSession.refresh_token,
       });
