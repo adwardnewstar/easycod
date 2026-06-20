@@ -533,7 +533,11 @@ async function refreshSignedUrl(url) {
     return result.data ? result.data.signedUrl : url;
   } catch (e) {
     // 400/404 说明文件不存在 → 清掉这个路径，避免反复重试
-    if (e.status === 400 || e.status === 404 || (e.message && (e.message.includes("400") || e.message.includes("404")))) {
+    if (
+      e.status === 400 ||
+      e.status === 404 ||
+      (e.message && (e.message.includes("400") || e.message.includes("404")))
+    ) {
       return null;
     }
     return url;
@@ -1338,7 +1342,7 @@ class App {
     }
   }
 
-  _restoreSupabaseSession(session) {
+  async _restoreSupabaseSession(session) {
     if (!session._supabaseSession || !supabaseClient) return;
     try {
       await supabaseClient.auth.setSession({
