@@ -324,6 +324,23 @@ function generateDailyCode() {
 }
 
 async function compressImage(file, maxDim = 600, quality = 0.8) {
+  // 支持 data URL 字符串直接传入，避免手机端 fetch(data:) 失败
+  if (typeof file === "string" && file.startsWith("data:")) {
+    return compressImageFromDataUrl(file, maxDim, quality);
+  }
+  // 支持 http(s) URL 字符串，fetch 后转为 blob 再压缩
+  if (
+    typeof file === "string" &&
+    (file.startsWith("http://") || file.startsWith("https://"))
+  ) {
+    try {
+      const blob = await (await fetch(file)).blob();
+      return compressImage(blob, maxDim, quality);
+    } catch (e) {
+      console.warn("[compressImage] fetch URL failed:", e);
+      return null;
+    }
+  }
   return new Promise((resolve) => {
     if (!file) {
       resolve(null);
@@ -331,31 +348,40 @@ async function compressImage(file, maxDim = 600, quality = 0.8) {
     }
     const reader = new FileReader();
     reader.onload = (e) => {
-      const img = new Image();
-      img.onload = () => {
-        let w = img.width,
-          h = img.height;
-        if (w > maxDim || h > maxDim) {
-          const ratio = Math.min(maxDim / w, maxDim / h);
-          w = Math.round(w * ratio);
-          h = Math.round(h * ratio);
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width = w;
-        canvas.height = h;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0, w, h);
-        let q = quality;
-        let dataUrl;
-        do {
-          dataUrl = canvas.toDataURL("image/jpeg", q);
-          q -= 0.1;
-        } while (dataUrl.length > 1024 * 1024 && q > 0.1);
-        resolve(dataUrl);
-      };
-      img.src = e.target.result;
+      compressImageFromDataUrl(e.target.result, maxDim, quality).then(resolve);
     };
+    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
+  });
+}
+
+/** 从 data URL 直接压缩图片，跳过 FileReader，手机端更可靠 */
+function compressImageFromDataUrl(dataUrl, maxDim, quality) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let w = img.width,
+        h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const ratio = Math.min(maxDim / w, maxDim / h);
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, w, h);
+      let q = quality;
+      let result;
+      do {
+        result = canvas.toDataURL("image/jpeg", q);
+        q -= 0.1;
+      } while (result.length > 1024 * 1024 && q > 0.1);
+      resolve(result);
+    };
+    img.onerror = () => resolve(null);
+    img.src = dataUrl;
   });
 }
 
@@ -442,19 +468,30 @@ function dataUrlToBlob(dataUrl) {
 async function uploadImageToStorage(dataUrl, sampleId, suffix) {
   if (!supabaseClient || !dataUrl || !dataUrl.startsWith("data:"))
     return dataUrl;
+  var tBlob = performance.now();
   var blob = dataUrlToBlob(dataUrl);
+  tBlob = Math.round(performance.now() - tBlob);
   var ext = blob.type === "image/png" ? "png" : "jpg";
   var path = "samples/" + sampleId + "_" + suffix + "." + ext;
+  var tUp = performance.now();
   var { error } = await supabaseClient.storage
     .from("sample-images")
     .upload(path, blob, { upsert: true, contentType: blob.type });
+  tUp = Math.round(performance.now() - tUp);
   if (error) {
     console.warn("Storage upload failed:", error);
+    window.app &&
+      window.app.showToast(
+        suffix + "上传失败:" + error.message.substring(0, 20),
+        "error",
+      );
     return dataUrl;
   }
+  var tSign = performance.now();
   var { data: signedData } = await supabaseClient.storage
     .from("sample-images")
     .createSignedUrl(path, 604800);
+  tSign = Math.round(performance.now() - tSign);
   return signedData ? signedData.signedUrl : dataUrl;
 }
 
@@ -500,32 +537,6 @@ async function deleteImageFromStorage(imageUrl) {
     .catch(function () {});
 }
 
-function toSnakeCase(obj) {
-  var r = {};
-  for (var k in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, k)) {
-      var sk = k.replace(/[A-Z]/g, function (m) {
-        return "_" + m.toLowerCase();
-      });
-      r[sk] = obj[k];
-    }
-  }
-  return r;
-}
-
-function fromSnakeCase(obj) {
-  var r = {};
-  for (var k in obj) {
-    if (Object.prototype.hasOwnProperty.call(obj, k)) {
-      var ck = k.replace(/_([a-z])/g, function (m, c) {
-        return c.toUpperCase();
-      });
-      r[ck] = obj[k];
-    }
-  }
-  return r;
-}
-
 function esc(str) {
   if (str == null) return "";
   return String(str)
@@ -550,6 +561,11 @@ function qrPageUrl(sampleId) {
 }
 
 class Store {
+  // 内存缓存：解决手机端 localStorage 配额超限时数据静默丢失的问题
+  static _samplesCache = null;
+  static _projectsCache = null;
+  static _samplesCleaned = false;
+
   static get(key) {
     try {
       return JSON.parse(localStorage.getItem(key));
@@ -563,23 +579,91 @@ class Store {
     try {
       localStorage.setItem(key, JSON.stringify(data));
     } catch (e) {
-      console.error("Store.set error:", e);
+      // localStorage 配额超限时，清除旧数据并重试
+      if (
+        e.name === "QuotaExceededError" ||
+        e.toString().indexOf("quota") !== -1
+      ) {
+        console.warn(
+          "[Store] localStorage quota exceeded, trying to free space",
+        );
+        try {
+          // 清除图片相关的旧数据来释放空间（不修改内存缓存，调用方已设置正确缓存）
+          const rawSamples = Store.getSamplesRaw();
+          if (rawSamples && rawSamples.length > 0) {
+            // 只保留最近 20 条样板，且清除旧图片
+            const trimmed = rawSamples.slice(-20).map(function (s) {
+              return { ...s, imageUrl: "", thumbnailUrl: "" };
+            });
+            localStorage.setItem(STORAGE_KEYS.samples, JSON.stringify(trimmed));
+          }
+          // 重试写入
+          localStorage.setItem(key, JSON.stringify(data));
+          console.log("[Store] retry succeeded after freeing space");
+          return;
+        } catch (e2) {
+          console.error("[Store] retry also failed:", e2);
+        }
+      }
     }
   }
 
   static getProjects() {
-    return Store.get(STORAGE_KEYS.projects) || [];
+    if (Store._projectsCache !== null) return Store._projectsCache;
+    Store._projectsCache = Store.get(STORAGE_KEYS.projects) || [];
+    return Store._projectsCache;
   }
 
   static saveProjects(projects) {
+    // DEBUG: 追踪谁修改了项目缓存
+    var prevCount = Store._projectsCache ? Store._projectsCache.length : -1;
+    var newCount = projects ? projects.length : -1;
+    if (prevCount >= 0 && newCount < prevCount) {
+      console.warn(
+        "[Store.saveProjects] 项目数减少! " + prevCount + " → " + newCount,
+        new Error().stack,
+      );
+    }
+    console.log("[Store.saveProjects] count:", newCount, "prev:", prevCount);
+    Store._projectsCache = projects;
     Store.set(STORAGE_KEYS.projects, projects);
   }
 
   static getSamples() {
+    if (Store._samplesCache !== null) return Store._samplesCache;
+    Store._samplesCache = Store.get(STORAGE_KEYS.samples) || [];
+    // 启动时清理超过 1 天的上传失败样板（释放 localStorage 空间）
+    if (!Store._samplesCleaned) {
+      Store._samplesCleaned = true;
+      Store._cleanExpiredFailedSamples();
+    }
+    return Store._samplesCache;
+  }
+
+  /** 直接从 localStorage 读取（绕过缓存，用于配额恢复） */
+  static getSamplesRaw() {
     return Store.get(STORAGE_KEYS.samples) || [];
   }
 
+  /** 清理超过 1 天的上传失败样板 */
+  static _cleanExpiredFailedSamples() {
+    var samples = Store._samplesCache;
+    if (!samples || !samples.length) return;
+    var dayAgo = Date.now() - 24 * 60 * 60 * 1000;
+    var cleaned = samples.filter(function (s) {
+      if (!s._uploadFailed) return true;
+      var created = s.created_at ? new Date(s.created_at).getTime() : 0;
+      if (created > 0 && created < dayAgo) return false; // 超过 1 天的失败样板，丢弃
+      return true;
+    });
+    if (cleaned.length < samples.length) {
+      Store._samplesCache = cleaned;
+      Store.set(STORAGE_KEYS.samples, cleaned);
+    }
+  }
+
   static saveSamples(samples) {
+    Store._samplesCache = samples;
     Store.set(STORAGE_KEYS.samples, samples);
   }
 
@@ -609,9 +693,23 @@ class Store {
   static syncDailyCodeToDB(code) {
     if (!supabaseClient) return;
     const date = today();
+    const vis = Store.getFieldVisibility();
     supabaseClient
       .from("daily_codes")
-      .upsert({ code, date }, { onConflict: "date" })
+      .upsert(
+        {
+          code,
+          date,
+          field_visibility: {
+            specs: vis.specs,
+            color: vis.color,
+            material: vis.material,
+            description: vis.description,
+            image: vis.image,
+          },
+        },
+        { onConflict: "date" },
+      )
       .then((res) => {
         if (res.error) console.warn("syncDailyCode failed:", res.error);
       });
@@ -651,6 +749,12 @@ class Store {
         console.warn("DB save visibility failed:", e),
       );
     }
+    // 同步到 daily_codes（公开可读，供扫码页使用）
+    if (!DEMO_MODE && supabaseClient) {
+      Store._syncFieldVisibilityToDailyCodes(vis).catch((e) =>
+        console.warn("daily_codes visibility sync failed:", e),
+      );
+    }
   }
 
   static async _saveFieldVisibilityToDB(vis) {
@@ -666,6 +770,27 @@ class Store {
         user_id: userId,
       },
       { onConflict: "user_id" },
+    );
+    if (error) throw error;
+  }
+
+  static async _syncFieldVisibilityToDailyCodes(vis) {
+    if (!supabaseClient) return;
+    const date = today();
+    const code = Store.getDailyCode();
+    const { error } = await supabaseClient.from("daily_codes").upsert(
+      {
+        date,
+        code,
+        field_visibility: {
+          specs: vis.specs,
+          color: vis.color,
+          material: vis.material,
+          description: vis.description,
+          image: vis.image,
+        },
+      },
+      { onConflict: "date" },
     );
     if (error) throw error;
   }
@@ -702,7 +827,7 @@ class Store {
     if (error) throw error;
     Store.set(
       STORAGE_KEYS.orders,
-      data && data.length > 0 ? data.map(fromSnakeCase) : [],
+      data && data.length > 0 ? data.map(DbWriter.fromSnakeCase) : [],
     );
   }
 
@@ -721,7 +846,7 @@ class Store {
     if (error) throw error;
     Store.set(
       STORAGE_KEYS.applyRecords,
-      data && data.length > 0 ? data.map(fromSnakeCase) : [],
+      data && data.length > 0 ? data.map(DbWriter.fromSnakeCase) : [],
     );
   }
 
@@ -740,7 +865,7 @@ class Store {
     if (error) throw error;
     Store.set(
       STORAGE_KEYS.clockRecords,
-      data && data.length > 0 ? data.map(fromSnakeCase) : [],
+      data && data.length > 0 ? data.map(DbWriter.fromSnakeCase) : [],
     );
   }
 
@@ -870,10 +995,22 @@ class Store {
       .select("*")
       .order("created_at", { ascending: false });
     if (error) throw error;
-    Store.set(
-      STORAGE_KEYS.projects,
-      data && data.length > 0 ? data.map(fromSnakeCase) : [],
-    );
+    if (data && data.length > 0) {
+      const dbProjects = data.map(DbWriter.fromSnakeCase);
+      // 合并本地数据：本地新建但 DB 尚未写入的条目不会被覆盖
+      const localProjects = Store.getProjects();
+      const map = {};
+      for (let i = 0; i < localProjects.length; i++) {
+        map[localProjects[i].id] = localProjects[i];
+      }
+      for (let j = 0; j < dbProjects.length; j++) {
+        map[dbProjects[j].id] = dbProjects[j];
+      }
+      const merged = Object.values(map);
+      Store._projectsCache = merged;
+      Store.set(STORAGE_KEYS.projects, merged);
+    }
+    // 注意：DB 无数据时不覆盖 localStorage，避免本地新建但 DB 写入失败时数据丢失
   }
 
   static async loadSamplesFromDB() {
@@ -884,9 +1021,9 @@ class Store {
       .order("created_at", { ascending: false });
     if (error) throw error;
     if (data && data.length > 0) {
-      var samples = data.map(fromSnakeCase);
+      var dbSamples = data.map(DbWriter.fromSnakeCase);
       var refreshes = [];
-      for (var i = 0; i < samples.length; i++) {
+      for (var i = 0; i < dbSamples.length; i++) {
         (function (s) {
           if (isSignedUrlExpiringSoon(s.imageUrl)) {
             refreshes.push(
@@ -902,25 +1039,103 @@ class Store {
               }),
             );
           }
-        })(samples[i]);
+        })(dbSamples[i]);
       }
       if (refreshes.length > 0) {
         await Promise.all(refreshes);
       }
-      Store.set(STORAGE_KEYS.samples, samples);
-    } else {
-      Store.set(STORAGE_KEYS.samples, []);
+      // 合并本地数据：本地新建但 DB 尚未写入的条目不会被覆盖
+      var localSamples = Store.getSamples();
+      var map = {};
+      for (var k = 0; k < localSamples.length; k++) {
+        map[localSamples[k].id] = localSamples[k];
+      }
+      for (var m = 0; m < dbSamples.length; m++) {
+        map[dbSamples[m].id] = dbSamples[m];
+      }
+      var merged = Object.values(map);
+      Store._samplesCache = merged;
+      Store.set(STORAGE_KEYS.samples, merged);
     }
+    // 注意：DB 无数据时不覆盖 localStorage，避免本地新建但 DB 写入失败时数据丢失
+  }
+
+  // 增量加载：只拉 updated_at > since 的变更数据
+  static async loadProjectsFromDBIncremental(since) {
+    if (!supabaseClient || !window.app?.user?.id) return [];
+    const { data, error } = await supabaseClient
+      .from("projects")
+      .select("*")
+      .gt("updated_at", since)
+      .order("updated_at", { ascending: false });
+    if (error) throw error;
+    return data && data.length > 0 ? data.map(DbWriter.fromSnakeCase) : [];
+  }
+
+  static async loadSamplesFromDBIncremental(since) {
+    if (!supabaseClient || !window.app?.user?.id) return [];
+    const { data, error } = await supabaseClient
+      .from("samples")
+      .select("*")
+      .gt("updated_at", since)
+      .order("updated_at", { ascending: false });
+    if (error) throw error;
+    if (!data || data.length === 0) return [];
+    var samples = data.map(DbWriter.fromSnakeCase);
+    var refreshes = [];
+    for (var i = 0; i < samples.length; i++) {
+      (function (s) {
+        if (isSignedUrlExpiringSoon(s.imageUrl)) {
+          refreshes.push(
+            refreshSignedUrl(s.imageUrl).then(function (u) {
+              s.imageUrl = u;
+            }),
+          );
+        }
+        if (isSignedUrlExpiringSoon(s.thumbnailUrl)) {
+          refreshes.push(
+            refreshSignedUrl(s.thumbnailUrl).then(function (u) {
+              s.thumbnailUrl = u;
+            }),
+          );
+        }
+      })(samples[i]);
+    }
+    if (refreshes.length > 0) await Promise.all(refreshes);
+    return samples;
+  }
+
+  // 按 id 合并增量数据到本地 Store
+  static mergeProjects(delta) {
+    if (!delta || delta.length === 0) return;
+    var existing = Store.getProjects();
+    var map = {};
+    for (var i = 0; i < existing.length; i++) {
+      map[existing[i].id] = existing[i];
+    }
+    for (var j = 0; j < delta.length; j++) {
+      map[delta[j].id] = delta[j];
+    }
+    Store.saveProjects(Object.values(map));
+  }
+
+  static mergeSamples(delta) {
+    if (!delta || delta.length === 0) return;
+    var existing = Store.getSamples();
+    var map = {};
+    for (var i = 0; i < existing.length; i++) {
+      map[existing[i].id] = existing[i];
+    }
+    for (var j = 0; j < delta.length; j++) {
+      map[delta[j].id] = delta[j];
+    }
+    Store.saveSamples(Object.values(map));
   }
 
   static async upsertProjectToDB(project) {
-    if (!supabaseClient || !window.app?.user?.id) return;
-    const { error } = await supabaseClient
-      .from("projects")
-      .upsert(toSnakeCase(project), {
-        onConflict: "id",
-      });
-    if (error) throw error;
+    const db = window.app?.dbWriter;
+    if (!db) return;
+    await db.upsertProject(project, window.app?.user?.id);
   }
 
   static async deleteProjectFromDB(projectId) {
@@ -941,11 +1156,21 @@ class Store {
     if (error) throw error;
   }
 
-  static async upsertSampleToDB(sample) {
-    if (!supabaseClient || !window.app?.user?.id) return;
+  static async upsertSampleToDB(sample, userId) {
+    const uid = userId || window.app?.user?.id;
+    if (!supabaseClient || !uid) {
+      console.warn(
+        "[Store] upsertSampleToDB skipped: supabaseClient=" +
+          !!supabaseClient +
+          " userId=" +
+          (uid || "none"),
+      );
+      return;
+    }
+    sample.user_id = uid;
     const { error } = await supabaseClient
       .from("samples")
-      .upsert(toSnakeCase(sample), {
+      .upsert(DbWriter.toSnakeCase(sample), {
         onConflict: "id",
       });
     if (error) throw error;
@@ -1026,7 +1251,29 @@ class App {
     this.selectedSamples = new Set();
     this.selectedLabels = { label1: true, label2: true, label3: true };
     this._projectView = "cards";
+    // 全局单例 — 数据库写入模块
+    this.dbWriter = new DbWriter({
+      onToast: (msg, type) => this.showToast(msg, type),
+    });
+    this.uploadManager = new UploadManager({
+      store: Store,
+      dbWriter: this.dbWriter,
+      compressImage: compressImage,
+      uploadToStorage: uploadImageToStorage,
+      deleteFromStorage: deleteImageFromStorage,
+      onToast: (msg, type) => this.showToast(msg, type),
+      onRender: () => this.renderSamples(this.currentProjectId),
+    });
     this.sidebar = new Sidebar();
+    this.loginPage = new LoginPage({
+      onLoginSuccess: (user) => {
+        this.user = user;
+        this.uploadManager.setUserId(user?.id);
+        this.showApp();
+      },
+      showToast: (msg, type) => this.showToast(msg, type),
+    });
+    this.dashboard = new DashboardPage(this);
     this.init();
   }
 
@@ -1048,15 +1295,24 @@ class App {
   async checkSession() {
     const session = Store.getSession();
     if (session && supabaseClient) {
+      // 恢复 Supabase auth session，避免手机端 token 丢失导致 RLS 42501
+      this._restoreSupabaseSession(session);
       this.user = session;
-      await this._refreshUserPermissions();
+      this.uploadManager.setUserId(session?.id);
+      // 并行：权限查询(DB网络) + UI渲染，不互相等待
+      var permPromise = this._refreshUserPermissions();
       await this.showApp();
+      await permPromise;
+      // 权限回来后更新侧边栏可见性
+      this.sidebar.updateVisibility(this.user);
     } else if (session) {
       await new Promise(function (resolve) {
         return setTimeout(resolve, 3000);
       });
       if (supabaseClient) {
+        this._restoreSupabaseSession(session);
         this.user = session;
+        this.uploadManager.setUserId(session?.id);
         await this._refreshUserPermissions();
         await this.showApp();
       } else {
@@ -1065,6 +1321,18 @@ class App {
       }
     } else {
       this.showLogin();
+    }
+  }
+
+  _restoreSupabaseSession(session) {
+    if (!session._supabaseSession || !supabaseClient) return;
+    try {
+      supabaseClient.auth.setSession({
+        access_token: session._supabaseSession.access_token,
+        refresh_token: session._supabaseSession.refresh_token,
+      });
+    } catch (e) {
+      console.warn("_restoreSupabaseSession failed:", e);
     }
   }
 
@@ -1097,41 +1365,64 @@ class App {
     this.currentView = "login";
     document.getElementById("loginSection").classList.add("active");
     document.getElementById("appSection").classList.remove("active");
+    return this.loginPage.render().then(() => this.loginPage.init());
   }
 
   async showApp() {
     this.currentView = "dashboard";
     document.getElementById("loginSection").classList.remove("active");
     document.getElementById("appSection").classList.add("active");
+
+    // 先加载 EasyCod 页面（类别/样板/信息），dashboard 依赖 #projectsSection
+    await Easycod.load();
+
+    // 并行加载 HTML（本地文件，毫秒级）
+    const [sidebarPromise, dashPromise] = [
+      this.sidebar.load(),
+      this.dashboard.load(),
+    ];
+    await Promise.all([sidebarPromise, dashPromise]);
+
+    // 侧边栏处理（不依赖数据）
+    this.bindSidebarNavEvents();
     this.sidebar.updateHeader(this.user);
     this.sidebar.updateVisibility(this.user);
     this.sidebar.init();
+
+    // 立即渲染仪表盘骨架（数据可能为空，但布局先出来）
+    this.dashboard.render();
+    this.showView("dashboard");
+
+    // 后台加载数据 — 不阻塞渲染，加载完成后自动刷新仪表盘
     if (this.user && this.user.isDemo) {
       this.seedDemoData();
+      this.dashboard.render();
     } else if (!DEMO_MODE && supabaseClient && this.user?.id) {
-      try {
-        // 1. 优先加载品类+样板（小数据量，快速准备数据）
-        await Promise.all([
-          Store.loadProjectsFromDB(),
-          Store.loadSamplesFromDB(),
-        ]);
-        // 2. 后台静默加载其他表（含审批相关数据）
-        Promise.all([
-          Store.loadOrdersFromDB(),
-          Store.loadApplyFromDB(),
-          Store.loadClockFromDB(),
-          Store.loadAllApprovalData(),
-        ]).catch(function (e2) {
-          console.warn("silent load failed:", e2);
-        });
-      } catch (e) {
-        console.warn("DB load failed:", e);
-        this.showToast("数据加载失败，请检查网络后刷新", "error");
-      }
       Store.loadFieldVisibilityFromDB();
+      Promise.all([Store.loadProjectsFromDB(), Store.loadSamplesFromDB()])
+        .then(
+          (function (self) {
+            return function () {
+              self.dashboard.render();
+              // 品类+样板加载完成后，后台静默加载其他表
+              Promise.all([
+                Store.loadOrdersFromDB(),
+                Store.loadApplyFromDB(),
+                Store.loadClockFromDB(),
+                Store.loadAllApprovalData(),
+              ]).catch(function (e2) {
+                console.warn("silent load failed:", e2);
+              });
+            };
+          })(this),
+        )
+        .catch(function (e) {
+          console.warn("DB load failed:", e);
+          window.app && window.app.showToast
+            ? window.app.showToast("数据加载失败，请检查网络后刷新", "error")
+            : void 0;
+        });
     }
-    this.renderDashboard();
-    this.showView("dashboard");
   }
 
   showView(view) {
@@ -1159,262 +1450,72 @@ class App {
       document.getElementById(sectionId).classList.add("active");
     }
     this.sidebar.setActiveView(view);
+
+    // 仪表盘撑满宽度，其他页保持 max-width 约束
+    var container = document.querySelector("#appSection .container");
+    if (container) {
+      if (view === "dashboard") {
+        container.style.maxWidth = "none";
+        container.style.margin = "5px";
+        container.style.paddingTop = "0";
+        container.style.paddingBottom = "0";
+      } else {
+        container.style.maxWidth = "";
+        container.style.margin = "";
+        container.style.paddingTop = "";
+        container.style.paddingBottom = "";
+      }
+    }
+  }
+
+  /** 绑定侧边栏导航按钮事件（sidebar.html 动态加载后调用） */
+  bindSidebarNavEvents() {
+    const bind = (id, fn) => {
+      const el = document.getElementById(id);
+      if (el) el.addEventListener("click", fn);
+    };
+
+    bind("logoutBtn", () => this.handleLogout());
+
+    bind("navProjects", () => {
+      this.renderProjects();
+      this.showView("projects");
+    });
+    bind("infoBtn", () => {
+      this.renderInfoView();
+      this.showView("info");
+    });
+    bind("navOrders", () => {
+      this.renderOrders();
+      this.showView("orders");
+    });
+    bind("navApply", () => {
+      this.renderApply();
+      this.showView("apply");
+    });
+    bind("navClock", () => {
+      this.renderClock();
+      this.showView("clock");
+    });
+    bind("navApprovalUsers", () => {
+      this.renderApprovalUsers();
+      this.showView("approvalUsers");
+    });
+    bind("navWorkflows", () => {
+      this.renderWorkflows();
+      this.showView("workflows");
+    });
+    bind("navApprovalRecords", () => {
+      this.renderApprovalRecords();
+      this.showView("approvalRecords");
+    });
+    bind("navVoiceAssistant", () => {
+      this.renderVoiceAssistantView();
+      this.showView("voiceAssistant");
+    });
   }
 
   bindEvents() {
-    document.getElementById("loginForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.handleLogin();
-    });
-
-    document.getElementById("sampleModal").addEventListener("click", (e) => {
-      const btn = e.target.closest(".vis-pill-btn");
-      if (!btn || btn.disabled) return;
-      const capsule = btn.closest(".vis-pill");
-      if (!capsule) return;
-      capsule
-        .querySelectorAll(".vis-pill-btn")
-        .forEach((b) => b.classList.remove("active"));
-      btn.classList.add("active");
-    });
-
-    document.getElementById("logoutBtn").addEventListener("click", () => {
-      this.handleLogout();
-    });
-
-    document.getElementById("navProjects").addEventListener("click", () => {
-      this.renderProjects();
-      this.showView("projects");
-    });
-
-    // 类别视图切换
-    document
-      .querySelectorAll("#projectViewToggle .toggle-btn")
-      .forEach(function (btn) {
-        btn.addEventListener(
-          "click",
-          function () {
-            var view = this.dataset.view;
-            document
-              .querySelectorAll("#projectViewToggle .toggle-btn")
-              .forEach(function (b) {
-                b.classList.remove("active");
-              });
-            this.classList.add("active");
-            window.app._projectView = view;
-            window.app.renderProjects();
-          }.bind(btn),
-        );
-      });
-
-    // 类别页搜索框
-    document
-      .getElementById("projectSearchInput")
-      .addEventListener("input", function () {
-        window.app._projectSearch = this.value.trim();
-        window.app.renderProjects();
-      });
-
-    // 类别页筛选
-    [
-      "projectBrandFilter",
-      "projectCategoryFilter",
-      "projectProcFilter",
-      "projectRangeFilter",
-    ].forEach(function (id) {
-      var el = document.getElementById(id);
-      if (el)
-        el.addEventListener("change", function () {
-          window.app.renderProjects();
-        });
-    });
-    var qBtn = document.getElementById("projectQueryBtn");
-    if (qBtn)
-      qBtn.addEventListener("click", function () {
-        window.app.renderProjects();
-      });
-
-    document
-      .getElementById("projectRefreshBtn")
-      .addEventListener("click", async () => {
-        if (!supabaseClient) return;
-        try {
-          await Store.loadProjectsFromDB();
-          await Store.loadSamplesFromDB();
-          // 后台静默刷新其他表
-          Promise.all([
-            Store.loadOrdersFromDB(),
-            Store.loadApplyFromDB(),
-            Store.loadClockFromDB(),
-          ]).catch(function (e) {
-            console.warn("silent refresh failed:", e);
-          });
-          this.renderProjects();
-          this.showToast("数据已刷新", "success");
-        } catch (e) {
-          this.showToast("刷新失败: " + e.message, "error");
-        }
-      });
-
-    document
-      .getElementById("createProjectBtn")
-      .addEventListener("click", () => {
-        this.openModal("projectModal");
-        document.getElementById("projectModalTitle").textContent = "新建类别";
-        document.getElementById("projectForm").reset();
-        document.getElementById("projectId").value = "";
-        this.initProjectTimeSelects();
-        document.getElementById("procTimeRow").style.display = "none";
-        var capsule = document.getElementById("projectProcCapsule");
-        capsule.querySelector('[data-value="非集采"]').classList.add("active");
-        capsule.querySelector('[data-value="集采"]').classList.remove("active");
-      });
-
-    document.getElementById("projectForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.saveProject();
-    });
-
-    document
-      .getElementById("projectProcCapsule")
-      .addEventListener("click", (e) => {
-        var btn = e.target.closest(".vis-pill-btn");
-        if (!btn) return;
-        var capsule = btn.closest(".vis-pill");
-        capsule.querySelectorAll(".vis-pill-btn").forEach(function (b) {
-          b.classList.remove("active");
-        });
-        btn.classList.add("active");
-        document.getElementById("procTimeRow").style.display =
-          btn.dataset.value === "集采" ? "flex" : "none";
-      });
-
-    document
-      .getElementById("cancelProjectBtn")
-      .addEventListener("click", () => {
-        this.closeModal("projectModal");
-      });
-
-    document.getElementById("createSampleBtn").addEventListener("click", () => {
-      this.openModal("sampleModal");
-      document.getElementById("sampleModalTitle").textContent = "录入样板";
-      document.getElementById("sampleForm").reset();
-      document.getElementById("sampleId").value = "";
-      document.getElementById("sampleCodeSeq").value = "";
-      document.getElementById("sampleCodeSuffix").textContent = "";
-      document.getElementById("imagePreview").classList.remove("has-image");
-      document.getElementById("sampleImagePreview").src = "";
-      document.getElementById("imagePlaceholder").style.display = "";
-      document.getElementById("sampleImagePreview").dataset.storageUrl = "";
-      document.getElementById(
-        "sampleImagePreview",
-      ).dataset.thumbnailStorageUrl = "";
-
-      const project = Store.getProjects().find(
-        (p) => p.id === this.currentProjectId,
-      );
-      document.getElementById("sampleBrand").value = project?.brand || "";
-      const capsule = document.getElementById("procurementRangeCapsule");
-      if (project && project.procurement) {
-        capsule.classList.remove("disabled");
-        capsule.querySelectorAll("button").forEach((btn) => {
-          btn.disabled = false;
-        });
-      } else {
-        capsule.classList.add("disabled");
-        capsule.querySelectorAll("button").forEach((btn) => {
-          btn.disabled = true;
-        });
-        capsule.querySelector('[data-value="范围外"]').classList.add("active");
-        capsule
-          .querySelector('[data-value="范围内"]')
-          .classList.remove("active");
-      }
-      const seq = nextSeqForProject(this.currentProjectId);
-      const code = generateSampleCode(
-        document.getElementById("sampleName").value || "名称",
-        document.getElementById("sampleBrand").value || project?.brand || "",
-        seq,
-      );
-      setSampleCodeFields(code);
-      document.getElementById("sampleEditFields").style.display = "none";
-      document.getElementById("sampleSpecs").value = "";
-      document.getElementById("sampleColor").value = "";
-      document.getElementById("sampleMaterial").value = "";
-      document.getElementById("sampleDescription").value = "";
-    });
-
-    document.getElementById("sampleName").addEventListener("input", () => {
-      const seq = nextSeqForProject(this.currentProjectId);
-      const name = document.getElementById("sampleName").value.trim();
-      const brand =
-        document.getElementById("sampleBrand").value.trim() ||
-        Store.getProjects().find((p) => p.id === this.currentProjectId)
-          ?.brand ||
-        "";
-      if (name) {
-        setSampleCodeFields(generateSampleCode(name, brand, seq));
-      }
-    });
-
-    document.getElementById("sampleForm").addEventListener("submit", (e) => {
-      e.preventDefault();
-      this.saveSample();
-    });
-
-    document.getElementById("cancelSampleBtn").addEventListener("click", () => {
-      this.closeModal("sampleModal");
-    });
-
-    document
-      .getElementById("sampleImageInput")
-      .addEventListener("change", (e) => {
-        const file = e.target.files[0];
-        if (file) this.openCropModal(file);
-        e.target.value = "";
-      });
-
-    document.getElementById("imageUploadArea").addEventListener("click", () => {
-      document.getElementById("sampleImageInput").click();
-    });
-
-    document.getElementById("batchPrintBtn").addEventListener("click", () => {
-      this.showLabelTypeModal();
-    });
-
-    document
-      .getElementById("labelTypeConfirm")
-      .addEventListener("click", () => {
-        this.confirmLabelTypePrint();
-      });
-
-    document.getElementById("labelTypeCancel").addEventListener("click", () => {
-      this.closeModal("labelTypeModal");
-    });
-
-    document
-      .getElementById("labelTypeModalClose")
-      .addEventListener("click", () => {
-        this.closeModal("labelTypeModal");
-      });
-
-    document.getElementById("selectAllBtn").addEventListener("click", () => {
-      this.selectAllSamples();
-    });
-
-    document.getElementById("backToProjects").addEventListener("click", () => {
-      this.renderProjects();
-      this.showView("projects");
-    });
-
-    // 样板品牌模糊匹配筛选
-    var sb = document.getElementById("sampleBrandFilter");
-    if (sb)
-      sb.addEventListener("input", function () {
-        if (window.app.currentProjectId)
-          window.app.renderSamples(window.app.currentProjectId);
-      });
-
     document.getElementById("backFromDetail").addEventListener("click", () => {
       if (this._projectView === "table") {
         this.renderProjects();
@@ -1451,103 +1552,6 @@ class App {
         btn.closest(".modal-overlay").classList.remove("active");
       });
     });
-
-    document.getElementById("cropDiscardBtn").addEventListener("click", () => {
-      this.closeCropModal();
-    });
-
-    document.getElementById("cropApplyBtn").addEventListener("click", () => {
-      this.finalizeCrop();
-    });
-
-    document
-      .getElementById("editProjectSampleBtn")
-      .addEventListener("click", () => {
-        this.openModal("projectModal");
-        document.getElementById("projectModalTitle").textContent = "编辑类别";
-        this.initProjectTimeSelects();
-        const project = Store.getProjects().find(
-          (p) => p.id === this.currentProjectId,
-        );
-        if (project) {
-          document.getElementById("projectId").value = project.id;
-          document.getElementById("projectName").value = project.name;
-          document.getElementById("projectDescription").value =
-            project.description || "";
-          document.getElementById("projectBrand").value = project.brand || "";
-          var isProc = project.procurement || false;
-          var capsule = document.getElementById("projectProcCapsule");
-          capsule.querySelectorAll(".vis-pill-btn").forEach(function (b) {
-            b.classList.remove("active");
-          });
-          capsule
-            .querySelector(
-              '[data-value="' + (isProc ? "集采" : "非集采") + '"]',
-            )
-            .classList.add("active");
-          document.getElementById("procTimeRow").style.display = isProc
-            ? "flex"
-            : "none";
-          if (project.procurementStart) {
-            var parts = project.procurementStart.split("-");
-            if (parts.length === 2) {
-              document.getElementById("procStartYear").value = parts[0];
-              document.getElementById("procStartMonth").value = parts[1];
-            }
-          }
-          if (project.procurementEnd) {
-            var parts = project.procurementEnd.split("-");
-            if (parts.length === 2) {
-              document.getElementById("procEndYear").value = parts[0];
-              document.getElementById("procEndMonth").value = parts[1];
-            }
-          }
-        }
-      });
-
-    document.getElementById("infoBtn").addEventListener("click", () => {
-      this.renderInfoView();
-      this.showView("info");
-    });
-
-    document.getElementById("navOrders").addEventListener("click", () => {
-      this.renderOrders();
-      this.showView("orders");
-    });
-
-    document.getElementById("navApply").addEventListener("click", () => {
-      this.renderApply();
-      this.showView("apply");
-    });
-
-    document.getElementById("navClock").addEventListener("click", () => {
-      this.renderClock();
-      this.showView("clock");
-    });
-
-    document
-      .getElementById("navApprovalUsers")
-      .addEventListener("click", () => {
-        this.renderApprovalUsers();
-        this.showView("approvalUsers");
-      });
-    document.getElementById("navWorkflows").addEventListener("click", () => {
-      this.renderWorkflows();
-      this.showView("workflows");
-    });
-    document
-      .getElementById("navApprovalRecords")
-      .addEventListener("click", () => {
-        this.renderApprovalRecords();
-        this.showView("approvalRecords");
-      });
-
-    document
-      .getElementById("navVoiceAssistant")
-      .addEventListener("click", () => {
-        this.renderVoiceAssistantView();
-        this.showView("voiceAssistant");
-      });
 
     // 语音助手 - 多标签切换
     const vaTabs = {
@@ -1836,8 +1840,25 @@ class App {
 
     document
       .getElementById("confirmDeleteBtn")
-      .addEventListener("click", () => {
-        this.handleDeleteConfirm();
+      .addEventListener("click", async () => {
+        const btn = document.getElementById("confirmDeleteBtn");
+        const originalText = btn.textContent;
+        btn.disabled = true;
+        let dots = 0;
+        let dotDir = 1;
+        const dotTimer = setInterval(() => {
+          dots += dotDir;
+          if (dots >= 3) dotDir = -1;
+          if (dots <= 0) dotDir = 1;
+          btn.textContent = "删除中" + ".".repeat(dots);
+        }, 400);
+        try {
+          await this.handleDeleteConfirm();
+        } finally {
+          clearInterval(dotTimer);
+          btn.disabled = false;
+          btn.textContent = originalText;
+        }
       });
 
     document
@@ -1861,89 +1882,14 @@ class App {
     });
   }
 
-  async handleLogin() {
-    const email = document.getElementById("loginEmail").value.trim();
-    const password = document.getElementById("loginPassword").value.trim();
-    if (!email || !password) {
-      this.showToast("请填写邮箱和密码", "error");
-      return;
-    }
-
-    if (!supabaseClient) {
-      if (!retryInitSupabase()) {
-        this.showToast("数据库未连接，请检查网络后刷新页面重试", "error");
-        return;
-      }
-    }
-    try {
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password,
-      });
-      if (error) {
-        this.showToast(error.message, "error");
-        return;
-      }
-      const user = data.user;
-      this.user = {
-        id: user.id,
-        email: user.email,
-        name: email.split("@")[0],
-        isDemo: false,
-      };
-      // 获取 ep_users 权限
-      try {
-        const { data: epData } = await supabaseClient
-          .from("ep_users")
-          .select(
-            "role, easycod, easyorder, easyproc, easyvoice, menu_permissions",
-          )
-          .eq("auth_user_id", user.id)
-          .eq("is_active", true)
-          .single();
-        if (epData) {
-          this.user.role = epData.role;
-          this.user.easycod = epData.easycod;
-          this.user.easyorder = epData.easyorder;
-          this.user.easyproc = epData.easyproc;
-          this.user.easyvoice = epData.easyvoice;
-          this.user.menuPermissions = epData.menu_permissions; // admin 为 null
-        }
-      } catch (e) {
-        // ep_users 中没有记录，非 admin 无法登录
-        if (this.user.email !== "452363508@qq.com") {
-          await supabaseClient.auth.signOut();
-          this.showToast("该账号未被授权", "error");
-          return;
-        }
-      }
-      Store.saveSession(this.user);
-      this.showToast("登录成功", "success");
-      await this.showApp();
-    } catch (e) {
-      this.showToast(e.message || "数据库连接失败，请检查网络后重试", "error");
-    }
-  }
-
-  async handleDemoLogin() {
-    this.user = {
-      id: "demo-user",
-      email: "demo@easycod.dev",
-      name: "演示用户",
-      isDemo: true,
-    };
-    Store.saveSession(this.user);
-    this.seedDemoData();
-    this.showToast("已进入演示模式", "success");
-    await this.showApp();
-  }
-
   seedDemoData() {
     const SEED_VERSION = "v3";
     const seeded = Store.get("easycod_seeded");
     if (seeded === SEED_VERSION) return;
     Store.set(STORAGE_KEYS.projects, []);
     Store.set(STORAGE_KEYS.samples, []);
+    Store._projectsCache = [];
+    Store._samplesCache = [];
 
     const now = new Date().toISOString();
 
@@ -2107,21 +2053,26 @@ class App {
   }
 
   async handleLogout() {
+    // 显示模糊加载遮罩
+    document.getElementById("globalLoading").classList.add("active");
+
     if (supabaseClient) {
-      try {
-        await supabaseClient.auth.signOut();
-      } catch (e) {
-        console.warn("Supabase signOut error:", e);
-      }
+      supabaseClient.auth
+        .signOut()
+        .catch((e) => console.warn("Supabase signOut error:", e));
     }
     Store.clearSession();
     this.user = null;
+    this.uploadManager.setUserId("");
     this.currentProjectId = null;
     this.inviteCodeVerified = false;
     document.getElementById("loginEmail").value = "";
     document.getElementById("loginPassword").value = "";
-    this.showLogin();
+    await this.showLogin();
     this.showToast("已退出登录", "info");
+
+    // 登录页渲染完成后隐藏遮罩
+    document.getElementById("globalLoading").classList.remove("active");
   }
 
   openModal(id) {
@@ -2149,9 +2100,10 @@ class App {
     container.appendChild(toast);
     setTimeout(() => {
       toast.style.opacity = "0";
-      toast.style.transition = "opacity 0.3s ease";
+      toast.style.transform = "translateY(8px)";
+      toast.style.transition = "all 0.3s ease";
       setTimeout(() => toast.remove(), 300);
-    }, 3000);
+    }, 6000);
   }
 
   _populateProjectFilters() {
@@ -2204,9 +2156,11 @@ class App {
     var catFlt =
       (document.getElementById("projectCategoryFilter") || {}).value || "";
     var procFlt =
-      (document.getElementById("projectProcFilter") || {}).value || "";
+      (document.querySelector("#projectProcFilter .toggle-btn.active") || {})
+        .dataset?.value || "";
     var rangeFlt =
-      (document.getElementById("projectRangeFilter") || {}).value || "";
+      (document.querySelector("#projectRangeFilter .toggle-btn.active") || {})
+        .dataset?.value || "";
     this._projectBrandFlt = brandFlt;
     this._projectCatFlt = catFlt;
     this._projectProcFlt = procFlt;
@@ -2254,23 +2208,34 @@ class App {
     }
     if (projects.length === 0) {
       container.innerHTML = `
-        <div class="empty-state">
-          <div class="icon"><img src="src/icon/file.svg" alt="empty" class="empty-icon"></div>
-          <p>暂无类别，点击右上角"新建类别"开始</p>
+        <div class="card card-placeholder" id="placeholderCreateCard">
+          <div class="card-body" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;min-height:120px">
+            <span style="font-size:2rem;line-height:1;color:var(--primary)">+</span>
+            <span style="font-size:0.9rem;color:var(--text-light)">新建品类</span>
+          </div>
         </div>
       `;
       return;
     }
-    container.innerHTML = projects
-      .map((project) => {
-        const sampleCount = Store.getSamples().filter(
-          (s) => s.projectId === project.id,
-        ).length;
-        const procurementHtml = project.procurement
-          ? `<span class="card-badge procurement">集采</span>
+    container.innerHTML =
+      `
+        <div class="card card-placeholder" id="placeholderCreateCard">
+          <div class="card-body" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;min-height:120px">
+            <span style="font-size:2rem;line-height:1;color:var(--primary)">+</span>
+            <span style="font-size:0.9rem;color:var(--text-light)">新建品类</span>
+          </div>
+        </div>
+      ` +
+      projects
+        .map((project) => {
+          const sampleCount = Store.getSamples().filter(
+            (s) => s.projectId === project.id,
+          ).length;
+          const procurementHtml = project.procurement
+            ? `<span class="card-badge procurement">集采</span>
            <span style="font-size:0.75rem;color:var(--text-light)">${formatDate(project.procurementStart)}-${formatDate(project.procurementEnd)}</span>`
-          : `<span class="card-badge non-procurement">非集采</span>`;
-        return `
+            : `<span class="card-badge non-procurement">非集采</span>`;
+          return `
         <div class="card" data-id="${project.id}">
           <div class="card-body">
             <div class="card-title-row">
@@ -2290,8 +2255,8 @@ class App {
           </div>
         </div>
       `;
-      })
-      .join("");
+        })
+        .join("");
 
     container.querySelectorAll(".view-samples-btn").forEach((btn) => {
       btn.addEventListener("click", (e) => {
@@ -2576,11 +2541,12 @@ class App {
             this.showToast("品牌同步到数据库失败，请检查网络", "error");
           }
         }
+        // DB 写入失败不阻塞本地渲染
         try {
           await Store.upsertProjectToDB(projects[index]);
         } catch (e) {
-          console.warn("DB sync failed:", e);
-          this.showToast("数据保存到数据库失败，请检查网络", "error");
+          console.warn("Project DB sync failed:", e);
+          this.showToast("数据库同步失败，请检查网络", "error");
         }
         this.showToast("类别已更新", "success");
       }
@@ -2600,11 +2566,12 @@ class App {
       };
       projects.push(project);
       Store.saveProjects(projects);
+      // DB 写入失败不阻塞本地渲染
       try {
         await Store.upsertProjectToDB(project);
       } catch (e) {
-        console.warn("DB sync failed:", e);
-        this.showToast("数据保存到数据库失败，请检查网络", "error");
+        console.warn("Project DB sync failed:", e);
+        this.showToast("数据库同步失败，请检查网络", "error");
       }
       this.showToast("类别已创建", "success");
     }
@@ -2613,74 +2580,29 @@ class App {
     this.renderProjects();
   }
 
-  renderSamples(projectId) {
-    const project = Store.getProjects().find((p) => p.id === projectId);
-    if (!project) {
-      this.renderProjects();
-      this.showView("projects");
-      return;
+  _renderOneCard(project, sample) {
+    const initials = sample.name ? sample.name.substring(0, 2) : "??";
+    const isProc = project && project.procurement;
+    let scopeText, scopeColor, labelBg;
+    if (isProc) {
+      const r =
+        sample.procurementRange || (sample.procurement ? "范围内" : "范围外");
+      scopeText = "集采 · " + r;
+      scopeColor = r === "范围内" ? "var(--success)" : "var(--warning)";
+      labelBg =
+        r === "范围内" ? "rgba(52,199,89,0.85)" : "rgba(255,149,0,0.85)";
+    } else {
+      scopeText = "非集采 · 范围外";
+      scopeColor = "var(--danger)";
+      labelBg = "rgba(255,59,48,0.85)";
     }
-
-    document.getElementById("currentProjectName").textContent = project.name;
-    document.getElementById("selectAllBtn").textContent = "全选";
-    var allSamples = Store.getSamples().filter(
-      (s) => s.projectId === projectId,
-    );
-    const container = document.getElementById("samplesContainer");
-    this.selectedSamples.clear();
-    this.updateBatchPrintBtn();
-
-    // 样板模糊匹配（编号/名称/型号/范围）
-    var brandSel = document.getElementById("sampleBrandFilter");
-    var brandFlt = brandSel ? brandSel.value.trim() : "";
-    var samples = brandFlt
-      ? allSamples.filter(function (s) {
-          var t = brandFlt.toLowerCase();
-          return (
-            (s.code && s.code.toLowerCase().indexOf(t) !== -1) ||
-            (s.name && s.name.toLowerCase().indexOf(t) !== -1) ||
-            (s.model && s.model.toLowerCase().indexOf(t) !== -1) ||
-            (s.procurementRange &&
-              s.procurementRange.toLowerCase().indexOf(t) !== -1)
-          );
-        })
-      : allSamples;
-
-    if (samples.length === 0) {
-      container.innerHTML = `
-        <div class="empty-state">
-          <div class="icon"><img src="src/icon/box.svg" alt="empty" class="empty-icon"></div>
-          <p>暂无样板，点击"录入样板"开始添加</p>
-        </div>
-      `;
-      return;
-    }
-
-    container.innerHTML = samples
-      .map((sample) => {
-        const initials = sample.name ? sample.name.substring(0, 2) : "??";
-        const isProc = project && project.procurement;
-        let scopeText, scopeColor, labelBg;
-        if (isProc) {
-          const r =
-            sample.procurementRange ||
-            (sample.procurement ? "范围内" : "范围外");
-          scopeText = "集采 · " + r;
-          scopeColor = r === "范围内" ? "var(--success)" : "var(--warning)";
-          labelBg =
-            r === "范围内" ? "rgba(52,199,89,0.85)" : "rgba(255,149,0,0.85)";
-        } else {
-          scopeText = "非集采 · 范围外";
-          scopeColor = "var(--danger)";
-          labelBg = "rgba(255,59,48,0.85)";
-        }
-        return `
+    return `
         <div class="sample-card" data-id="${sample.id}">
           <input type="checkbox" class="sample-checkbox" data-id="${sample.id}" ${this.selectedSamples.has(sample.id) ? "checked" : ""}>
           <div class="sample-image-wrap">
             ${
               sample.imageUrl
-                ? `<img class="sample-image" src="${sample.thumbnailUrl || sample.imageUrl}" alt="${sample.name}" loading="lazy" data-fullsrc="${sample.imageUrl}">`
+                ? `<img class="sample-image" src="${sample.thumbnailUrl || sample.imageUrl}" alt="${sample.name}" loading="lazy" data-fullsrc="${sample.imageUrl}">${sample._uploadFailed ? `<div class="sample-fail-watermark">FALSE</div>` : ""}`
                 : `<div class="sample-image-placeholder">${initials}</div>`
             }
             <button class="btn-label-print" data-id="${sample.id}" title="打印标签" style="background:${labelBg};">标签</button>
@@ -2700,79 +2622,185 @@ class App {
           </div>
         </div>
       `;
-      })
-      .join("");
-
-    container.querySelectorAll(".sample-checkbox").forEach((cb) => {
-      cb.addEventListener("change", (e) => {
-        e.stopPropagation();
-        const id = cb.dataset.id;
-        if (cb.checked) {
-          this.selectedSamples.add(id);
-        } else {
-          this.selectedSamples.delete(id);
-        }
-        this.updateBatchPrintBtn();
-      });
-    });
-
-    container.querySelectorAll(".view-sample-detail-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.showSampleDetail(btn.dataset.id);
-      });
-    });
-
-    container.querySelectorAll(".edit-sample-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        const sample = samples.find((s) => s.id === btn.dataset.id);
-        if (sample) this.editSample(sample);
-      });
-    });
-
-    container.querySelectorAll(".delete-sample-btn").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        if (confirm("确定要删除该样板吗？")) {
-          const id = btn.dataset.id;
-          var s = samples.find(function (s) {
-            return s.id === id;
-          });
-          if (s) {
-            if (s.imageUrl) deleteImageFromStorage(s.imageUrl);
-            if (s.thumbnailUrl) deleteImageFromStorage(s.thumbnailUrl);
-          }
-          let allSamples = Store.getSamples();
-          allSamples = allSamples.filter((s) => s.id !== id);
-          Store.saveSamples(allSamples);
-          Store.deleteSampleFromDB(id).catch((e) => {
-            console.warn("DB delete sample failed:", e);
-            this.showToast("删除数据同步到数据库失败，请检查网络", "error");
-          });
-          this.renderSamples(this.currentProjectId);
-          this.showToast("样板已删除", "success");
-        }
-      });
-    });
-
-    container.querySelectorAll(".btn-label-print").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.showSingleLabel(btn.dataset.id);
-      });
-    });
   }
 
-  updateBatchPrintBtn() {
-    const btn = document.getElementById("batchPrintBtn");
+  _bindOneCard(cardEl) {
+    const self = this;
+    const cb = cardEl.querySelector(".sample-checkbox");
+    if (cb) {
+      cb.addEventListener("change", function (e) {
+        e.stopPropagation();
+        if (cb.checked) self.selectedSamples.add(cb.dataset.id);
+        else self.selectedSamples.delete(cb.dataset.id);
+        self.updateBatchBtns();
+      });
+    }
+    const detailBtn = cardEl.querySelector(".view-sample-detail-btn");
+    if (detailBtn) {
+      detailBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        self.showSampleDetail(detailBtn.dataset.id);
+      });
+    }
+    const editBtn = cardEl.querySelector(".edit-sample-btn");
+    if (editBtn) {
+      editBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const samples = Store.getSamples();
+        const sample = samples.find(function (s) {
+          return s.id === editBtn.dataset.id;
+        });
+        if (sample) self.editSample(sample);
+      });
+    }
+    const delBtn = cardEl.querySelector(".delete-sample-btn");
+    if (delBtn) {
+      delBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        const samples = Store.getSamples();
+        const sample = samples.find(function (s) {
+          return s.id === delBtn.dataset.id;
+        });
+        window.app.promptDelete(
+          "sample",
+          delBtn.dataset.id,
+          "样板 " + (sample ? sample.name : ""),
+        );
+      });
+    }
+    const printBtn = cardEl.querySelector(".btn-label-print");
+    if (printBtn) {
+      printBtn.addEventListener("click", function (e) {
+        e.stopPropagation();
+        self.showSingleLabel(printBtn.dataset.id);
+      });
+    }
+  }
+
+  renderSamples(projectId) {
+    const project = Store.getProjects().find((p) => p.id === projectId);
+    if (!project) {
+      this.renderProjects();
+      this.showView("projects");
+      return;
+    }
+
+    document.getElementById("currentProjectName").textContent = project.name;
+    document.getElementById("selectAllBtn").textContent = "全选";
+    var allSamples = Store.getSamples().filter(
+      (s) => s.projectId === projectId,
+    );
+    const container = document.getElementById("samplesContainer");
+    this.selectedSamples.clear();
+    this.updateBatchBtns();
+
+    // 样板模糊匹配（编号/名称/型号/范围）
+    var brandSel = document.getElementById("sampleBrandFilter");
+    var brandFlt = brandSel ? brandSel.value.trim() : "";
+    var samples = brandFlt
+      ? allSamples.filter(function (s) {
+          var t = brandFlt.toLowerCase();
+          return (
+            (s.code && s.code.toLowerCase().indexOf(t) !== -1) ||
+            (s.name && s.name.toLowerCase().indexOf(t) !== -1) ||
+            (s.model && s.model.toLowerCase().indexOf(t) !== -1) ||
+            (s.procurementRange &&
+              s.procurementRange.toLowerCase().indexOf(t) !== -1)
+          );
+        })
+      : allSamples;
+
+    if (samples.length === 0) {
+      container.innerHTML = `
+        <div class="sample-card sample-placeholder" id="placeholderSampleCard" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;">
+          <span style="font-size:2rem;line-height:1;color:var(--primary)">+</span>
+          <span style="font-size:0.8rem;color:var(--text-light)">录入样板</span>
+        </div>
+      `;
+      return;
+    }
+
+    const self = this;
+    container.innerHTML =
+      `
+        <div class="sample-card sample-placeholder" id="placeholderSampleCard" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;">
+          <span style="font-size:2rem;line-height:1;color:var(--primary)">+</span>
+          <span style="font-size:0.8rem;color:var(--text-light)">录入样板</span>
+        </div>
+      ` +
+      samples
+        .map(function (s) {
+          return self._renderOneCard(project, s);
+        })
+        .join("");
+
+    container
+      .querySelectorAll(".sample-card[data-id]")
+      .forEach(function (card) {
+        self._bindOneCard(card);
+      });
+    this._markLocalOnlySamples(projectId);
+  }
+
+  async _markLocalOnlySamples(projectId) {
+    if (!supabaseClient || !this.user || this.user.isDemo) return;
+    try {
+      const { data: dbSamples } = await supabaseClient
+        .from("samples")
+        .select("id")
+        .eq("project_id", projectId);
+      if (!dbSamples) return;
+      const dbIds = new Set(
+        dbSamples.map(function (s) {
+          return s.id;
+        }),
+      );
+      var allSamples = Store.getSamples();
+      var changed = false;
+      var removed = false;
+      for (var i = allSamples.length - 1; i >= 0; i--) {
+        var s = allSamples[i];
+        if (s.projectId !== projectId) continue;
+        if (dbIds.has(s.id)) continue;
+        // 本地有、DB 无：判断是删除同步还是上传失败
+        if (s.imageUrl && s.imageUrl.startsWith("http")) {
+          // Supabase URL → 曾被同步到 DB，被其他端删了 → 本地移除
+          allSamples.splice(i, 1);
+          removed = true;
+        } else if (!s._uploadFailed) {
+          // data URL 或无图 → 从未上传成功 → 标记失败
+          s._uploadFailed = true;
+          s._pendingUpload = false;
+          changed = true;
+        }
+      }
+      if (changed || removed) {
+        Store.saveSamples(allSamples);
+        this.renderSamples(projectId);
+      }
+    } catch (e) {
+      // 静默失败
+    }
+  }
+
+  updateBatchBtns() {
     const count = this.selectedSamples.size;
+    const printBtn = document.getElementById("batchPrintBtn");
+    const deleteBtn = document.getElementById("batchDeleteBtn");
     if (count > 0) {
-      btn.textContent = `批量打印 (${count})`;
-      btn.disabled = false;
+      printBtn.textContent = "批量打印 (" + count + ")";
+      printBtn.disabled = false;
+      if (deleteBtn) {
+        deleteBtn.textContent = "批量删除 (" + count + ")";
+        deleteBtn.disabled = false;
+      }
     } else {
-      btn.textContent = "批量打印";
-      btn.disabled = true;
+      printBtn.textContent = "批量打印";
+      printBtn.disabled = true;
+      if (deleteBtn) {
+        deleteBtn.textContent = "批量删除";
+        deleteBtn.disabled = true;
+      }
     }
   }
 
@@ -2792,7 +2820,7 @@ class App {
     });
     const btn = document.getElementById("selectAllBtn");
     btn.textContent = allSelected ? "全选" : "取消全选";
-    this.updateBatchPrintBtn();
+    this.updateBatchBtns();
   }
 
   initProjectTimeSelects() {
@@ -3090,7 +3118,8 @@ class App {
       "#procurementRangeCapsule .vis-pill-btn.active",
     );
     const procurementRange = activeBtn ? activeBtn.dataset.value : "范围外";
-    let imageUrl = document.getElementById("sampleImagePreview").src || "";
+    const localImageUrl =
+      document.getElementById("sampleImagePreview").src || "";
 
     if (!name) {
       this.showToast("请输入样板名称", "error");
@@ -3111,42 +3140,31 @@ class App {
       }
     }
 
-    let thumbnailUrl =
-      document.getElementById("sampleImagePreview").dataset.thumbnailUrl || "";
-    if (imageUrl && imageUrl.startsWith("data:")) {
-      var preview = document.getElementById("sampleImagePreview");
-      var oldImageUrl = preview.dataset.storageUrl || "";
-      var sampleId = document.getElementById("sampleId").value || generateId();
-      if (!document.getElementById("sampleId").value) {
-        document.getElementById("sampleId").value = sampleId;
-      }
-      var compressed = await compressImage(
-        await (await fetch(imageUrl)).blob(),
-        600,
-        0.8,
-      );
-      if (compressed) {
-        imageUrl = await uploadImageToStorage(compressed, sampleId, "full");
-        var thumb = await compressImage(
-          await (
-            await fetch(imageUrl.startsWith("http") ? imageUrl : compressed)
-          ).blob(),
-          200,
-          0.7,
-        );
-        if (thumb)
-          thumbnailUrl = await uploadImageToStorage(thumb, sampleId, "thumb");
-      }
-      if (oldImageUrl && oldImageUrl.includes("sample-images")) {
-        deleteImageFromStorage(oldImageUrl);
-        var oldThumb = preview.dataset.thumbnailStorageUrl || "";
-        if (oldThumb) deleteImageFromStorage(oldThumb);
+    // ── 阶段一：乐观更新（立即写本地 Store，关闭弹窗，渲染卡片）──
+    const samples = Store.getSamples();
+    const hasNewImage = localImageUrl && localImageUrl.startsWith("data:");
+    const previewEl = document.getElementById("sampleImagePreview");
+    const oldStorageUrl = previewEl ? previewEl.dataset.storageUrl || "" : "";
+    const oldThumbUrl = previewEl
+      ? previewEl.dataset.thumbnailStorageUrl || ""
+      : "";
+
+    // 新图片压缩为极小的预览版存 Store，避免手机端 data URL 导致 localStorage 配额超限
+    // 原图仍通过 localImageUrl 传给 UploadManager 上传 Supabase
+    let previewImageUrl = localImageUrl;
+    if (hasNewImage) {
+      try {
+        const compressed = await compressImage(localImageUrl, 200, 0.6);
+        if (compressed) {
+          previewImageUrl = compressed;
+        }
+      } catch (e) {
+        console.warn("[saveSample] preview compression failed:", e);
       }
     }
 
-    const samples = Store.getSamples();
-
     if (id) {
+      // 编辑已有样板
       const index = samples.findIndex((s) => s.id === id);
       if (index !== -1) {
         samples[index] = {
@@ -3160,21 +3178,21 @@ class App {
           description,
           code: getSampleCode() || samples[index].code,
           procurementRange,
-          imageUrl: imageUrl || samples[index].imageUrl,
-          thumbnailUrl: thumbnailUrl || samples[index].thumbnailUrl,
+          imageUrl: hasNewImage
+            ? previewImageUrl
+            : samples[index].imageUrl || "",
+          thumbnailUrl: hasNewImage
+            ? previewImageUrl
+            : samples[index].thumbnailUrl || "",
           user_id: this.user?.id || samples[index].userId || "demo-user",
           updatedAt: new Date().toISOString(),
+          _uploadFailed: false,
+          _pendingUpload: hasNewImage,
         };
         Store.saveSamples(samples);
-        try {
-          await Store.upsertSampleToDB(samples[index]);
-        } catch (e) {
-          console.warn("DB sync failed:", e);
-          this.showToast("数据保存到数据库失败，请检查网络", "error");
-        }
-        this.showToast("样板已更新", "success");
       }
     } else {
+      // 新建样板
       const project = Store.getProjects().find(
         (p) => p.id === this.currentProjectId,
       );
@@ -3192,31 +3210,62 @@ class App {
         model,
         brand,
         code,
-        imageUrl: imageUrl || "",
-        thumbnailUrl: thumbnailUrl || "",
-        description: "",
-        specs: "",
-        color: "",
-        material: "",
-        procurementRange: procurementRange,
+        imageUrl: previewImageUrl || "",
+        thumbnailUrl: previewImageUrl || "",
+        description,
+        specs,
+        color,
+        material,
+        procurementRange,
         userId: this.user?.id || "demo-user",
         user_id: this.user?.id || "demo-user",
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        _uploadFailed: false,
+        _pendingUpload: hasNewImage,
       };
       samples.push(sample);
       Store.saveSamples(samples);
-      try {
-        await Store.upsertSampleToDB(sample);
-      } catch (e) {
-        console.warn("DB sync failed:", e);
-        this.showToast("数据保存到数据库失败，请检查网络", "error");
-      }
-      this.showToast("样板已创建", "success");
+      // 确保新建后 sampleId 被清除，防止下次保存变成编辑
+      document.getElementById("sampleId").value = "";
     }
 
+    const targetId = id || samples[samples.length - 1].id;
+    const targetSample = samples.find((s) => s.id === targetId);
+    const code = targetSample ? targetSample.code : "";
+
     this.closeModal("sampleModal");
-    this.renderSamples(this.currentProjectId);
+
+    if (id) {
+      // 编辑：全量重渲染（封面、信息可能变化）
+      this.renderSamples(this.currentProjectId);
+    } else {
+      // 新建：增量追加，不动已有 DOM
+      const container = document.getElementById("samplesContainer");
+      const placeholder = document.getElementById("placeholderSampleCard");
+      if (placeholder) placeholder.remove();
+      const project = Store.getProjects().find(function (p) {
+        return p.id === this.currentProjectId;
+      }, this);
+      const cardHtml = this._renderOneCard(project || {}, targetSample);
+      container.insertAdjacentHTML("beforeend", cardHtml);
+      const newCard = container.querySelector(
+        '.sample-card[data-id="' + targetId + '"]',
+      );
+      if (newCard) this._bindOneCard(newCard);
+      this._markLocalOnlySamples(this.currentProjectId);
+    }
+
+    // ── 阶段二：加入上传队列（UploadManager 管理）──
+    this.uploadManager.enqueue({
+      targetId,
+      isEdit: !!id,
+      localImageUrl,
+      hasNewImage,
+      oldStorageUrl,
+      oldThumbUrl,
+      code,
+    });
   }
 
   editSample(sample) {
@@ -3334,7 +3383,7 @@ class App {
 
     if (sample.imageUrl) {
       cells.push(
-        `<div class="detail-cell" style="grid-column:span 2;"><span class="cell-label">图片</span><img class="cell-image" src="${sample.imageUrl}" alt="${sample.name}" data-fullsrc="${sample.imageUrl}"></div>`,
+        `<div class="detail-cell" style="grid-column:span 2;"><span class="cell-label">图片</span><img class="cell-image" src="${sample.thumbnailUrl || sample.imageUrl}" alt="${sample.name}" data-fullsrc="${sample.imageUrl}"></div>`,
       );
     }
 
@@ -3344,10 +3393,8 @@ class App {
     );
 
     container.innerHTML = `
-      <div class="detail-view" style="box-shadow:none;border:1px solid var(--border);">
-        <div class="detail-body detail-grid" style="padding:10px 12px;">
-          ${cells.join("")}
-        </div>
+      <div class="detail-body detail-grid" style="padding:10px 12px;border:1px solid var(--border);background:var(--card-bg);">
+        ${cells.join("")}
       </div>
     `;
 
@@ -3886,7 +3933,7 @@ class App {
         if (supabaseClient && self.user && !self.user.isDemo) {
           supabaseClient
             .from("orders")
-            .insert(toSnakeCase(data))
+            .insert(DbWriter.toSnakeCase(data))
             .then(function (r) {
               if (r.error) console.warn("sync order failed:", r.error);
             });
@@ -3940,7 +3987,7 @@ class App {
         if (supabaseClient && self.user && !self.user.isDemo) {
           supabaseClient
             .from("apply_records")
-            .insert(toSnakeCase(data))
+            .insert(DbWriter.toSnakeCase(data))
             .then(function (r) {
               if (r.error) console.warn("sync apply failed:", r.error);
             });
@@ -3990,7 +4037,7 @@ class App {
         if (supabaseClient && self.user && !self.user.isDemo) {
           supabaseClient
             .from("clock_records")
-            .insert(toSnakeCase(data))
+            .insert(DbWriter.toSnakeCase(data))
             .then(function (r) {
               if (r.error) console.warn("sync clock failed:", r.error);
             });
@@ -4018,292 +4065,6 @@ class App {
     } else {
       alert("邀请码: " + code);
     }
-  }
-
-  renderDashboard() {
-    var projects = Store.getProjects() || [];
-    var samples = Store.getSamples() || [];
-    var orders = Store.getOrders() || [];
-    var apply = Store.getApplyRecords() || [];
-    var clock = Store.getClockRecords() || [];
-
-    // 如果是演示模式或空数据，拉取一遍
-    if (this.user && this.user.isDemo) {
-      this.seedDemoData();
-      projects = Store.getProjects();
-      samples = Store.getSamples();
-      orders = Store.getOrders();
-      apply = Store.getApplyRecords();
-      clock = Store.getClockRecords();
-    }
-
-    var sc = samples.length;
-    var pc = projects.length;
-    var dailyCode = Store.getDailyCode();
-
-    var html = '<div class="dashboard-grid">';
-
-    // 第一行：样板 + 品类 + 邀请码
-    html += '<div class="dash-metric-row">';
-    html +=
-      '<div class="dash-metric-card"><div class="dash-num" data-target="' +
-      sc +
-      '">0</div><div class="dash-label">已录入样板</div></div>';
-    html +=
-      '<div class="dash-metric-card"><div class="dash-num" data-target="' +
-      pc +
-      '">0</div><div class="dash-label">当前品类</div></div>';
-    html +=
-      '<div class="dash-metric-card invite-code-card"><div class="dash-num dash-code" id="dashInviteCode">' +
-      this._randomCodeStr(dailyCode.length || 6) +
-      '</div><div class="dash-label">今日邀请码</div></div>';
-    html += "</div>";
-
-    // 第二行：三个甜甜圈图
-    html += '<div class="dash-chart-row">';
-    html += this._donutChart("订单状态", orders, "status", {
-      未提交: "#FF9800",
-      已收录: "#4CAF50",
-    });
-    html += this._donutChart("申请类型", apply, "type", {
-      运输: "#2196F3",
-      参观: "#9C27B0",
-      选样: "#FF5722",
-      借还: "#00BCD4",
-      其他: "#607D8B",
-    });
-    html += this._donutChart("打卡角色", clock, "companyType", {
-      业主方: "#4CAF50",
-      运营方: "#2196F3",
-      品牌方: "#FF9800",
-      其他: "#607D8B",
-    });
-    html += "</div>";
-
-    html += "</div>";
-
-    document.getElementById("dashboardContainer").innerHTML = html;
-
-    // 动画：数字计数
-    this._animateNumbers();
-    // 动画：邀请码翻转
-    this._animateFlipCode(dailyCode);
-    // 动画：甜甜圈比例
-    this._animateDonuts();
-  }
-
-  // 计数动画
-  _animateNumbers() {
-    var els = document.querySelectorAll(".dash-num[data-target]");
-    els.forEach(function (el) {
-      var target = parseInt(el.getAttribute("data-target"), 10);
-      if (isNaN(target) || target <= 0) {
-        el.textContent = target || 0;
-        return;
-      }
-      var duration = 800;
-      var start = performance.now();
-      function step(now) {
-        var t = Math.min((now - start) / duration, 1);
-        var eased = 1 - Math.pow(1 - t, 3);
-        el.textContent = Math.round(eased * target);
-        if (t < 1) requestAnimationFrame(step);
-      }
-      requestAnimationFrame(step);
-    });
-  }
-
-  // 邀请码翻牌效果
-  _animateFlipCode(finalCode) {
-    var el = document.getElementById("dashInviteCode");
-    if (!el || !finalCode) return;
-    var len = finalCode.length;
-    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    var duration = 1200;
-    var interval = 60;
-    var steps = Math.floor(duration / interval);
-    var count = 0;
-    var timer = setInterval(function () {
-      count++;
-      var pct = count / steps;
-      var fixed = Math.floor(pct * len);
-      var s = "";
-      for (var i = 0; i < len; i++) {
-        s +=
-          i < fixed
-            ? finalCode[i]
-            : chars[Math.floor(Math.random() * chars.length)];
-      }
-      el.textContent = s;
-      if (count >= steps) {
-        clearInterval(timer);
-        el.textContent = finalCode;
-      }
-    }, interval);
-  }
-
-  _animateDonuts() {
-    var els = document.querySelectorAll(".donut-chart[data-final-bg]");
-    if (els.length === 0) return;
-    var self = this;
-    els.forEach(function (el) {
-      var finalBg = el.getAttribute("data-final-bg");
-      if (!finalBg || finalBg.indexOf("conic-gradient") !== 0) return;
-      var content = finalBg.slice("conic-gradient(".length, -1);
-      var parts = content
-        .split(", ")
-        .map(function (p) {
-          var m = p.match(/^(#[0-9a-fA-F]{3,8})\s+([\d.]+)deg\s+([\d.]+)deg$/);
-          return m
-            ? { color: m[1], from: parseFloat(m[2]), to: parseFloat(m[3]) }
-            : null;
-        })
-        .filter(Boolean);
-      if (parts.length === 0) {
-        el.style.background = finalBg;
-        return;
-      }
-
-      var duration = 800;
-      var start = performance.now();
-      function step(now) {
-        var t = Math.min((now - start) / duration, 1);
-        var eased = 1 - Math.pow(1 - t, 3);
-        var cur = parts.map(function (p) {
-          var c = self._lerpColor("#e0e0e0", p.color, eased);
-          return c + " " + p.from + "deg " + p.to + "deg";
-        });
-        el.style.background = "conic-gradient(" + cur.join(", ") + ")";
-        if (t < 1) requestAnimationFrame(step);
-      }
-      requestAnimationFrame(step);
-    });
-  }
-
-  _lerpColor(c1, c2, t) {
-    var r1 = parseInt(c1.slice(1, 3), 16),
-      g1 = parseInt(c1.slice(3, 5), 16),
-      b1 = parseInt(c1.slice(5, 7), 16);
-    var r2 = parseInt(c2.slice(1, 3), 16),
-      g2 = parseInt(c2.slice(3, 5), 16),
-      b2 = parseInt(c2.slice(5, 7), 16);
-    var r = Math.round(r1 + (r2 - r1) * t);
-    var g = Math.round(g1 + (g2 - g1) * t);
-    var b = Math.round(b1 + (b2 - b1) * t);
-    return (
-      "#" +
-      [r, g, b]
-        .map(function (x) {
-          return x.toString(16).padStart(2, "0");
-        })
-        .join("")
-    );
-  }
-
-  _randomCodeStr(len) {
-    var chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    var s = "";
-    for (var i = 0; i < len; i++)
-      s += chars[Math.floor(Math.random() * chars.length)];
-    return s;
-  }
-
-  // 生成甜甜圈图 HTML
-  _donutChart(title, data, field, colorMap) {
-    var total = data.length;
-    var counts = {};
-    data.forEach(function (d) {
-      var val = d[field] || "其他";
-      counts[val] = (counts[val] || 0) + 1;
-    });
-
-    if (total === 0) {
-      return (
-        '<div class="dash-chart-card"><h3>' +
-        title +
-        '</h3><div class="dash-chart-body"><div style="color:var(--text-light);font-size:0.85rem;">暂无数据</div></div></div>'
-      );
-    }
-
-    // 构建渐变色
-    var conicParts = [];
-    var legendHtml = "";
-    var startDeg = 0;
-    var idx = 0;
-    var colorKeys = Object.keys(colorMap);
-    for (var ci = 0; ci < colorKeys.length; ci++) {
-      var key = colorKeys[ci];
-      var cnt = counts[key] || 0;
-      if (cnt === 0) continue;
-      var pct = (cnt / total) * 100;
-      var deg = (cnt / total) * 360;
-      var color = colorMap[key];
-      conicParts.push(
-        color + " " + startDeg + "deg " + (startDeg + deg) + "deg",
-      );
-      legendHtml +=
-        '<div class="donut-legend-item"><span class="color-dot" style="background:' +
-        color +
-        '"></span><span class="legend-label">' +
-        key +
-        '</span><span class="legend-val">' +
-        cnt +
-        '</span><span class="legend-pct">' +
-        Math.round(pct) +
-        "%</span></div>";
-      startDeg += deg;
-      idx++;
-    }
-
-    // 处理其他未在 colorMap 中的值
-    for (var k in counts) {
-      if (colorKeys.indexOf(k) === -1) {
-        var cnt2 = counts[k];
-        var pct2 = (cnt2 / total) * 100;
-        var deg2 = (cnt2 / total) * 360;
-        conicParts.push(
-          "#607D8B " + startDeg + "deg " + (startDeg + deg2) + "deg",
-        );
-        legendHtml +=
-          '<div class="donut-legend-item"><span class="color-dot" style="background:#607D8B"></span><span class="legend-label">' +
-          k +
-          '</span><span class="legend-val">' +
-          cnt2 +
-          '</span><span class="legend-pct">' +
-          Math.round(pct2) +
-          "%</span></div>";
-        startDeg += deg2;
-      }
-    }
-
-    var bg =
-      conicParts.length > 0
-        ? "conic-gradient(" + conicParts.join(", ") + ")"
-        : "#eee";
-
-    var finalBg = bg;
-
-    // 初始渲染灰色，动画过渡到最终色
-    bg = conicParts.length > 0 ? "conic-gradient(#e0e0e0 0deg 360deg)" : "#eee";
-
-    return (
-      '<div class="dash-chart-card">' +
-      "<h3>" +
-      title +
-      ' <span class="dash-total">(共' +
-      total +
-      "条)</span></h3>" +
-      '<div class="dash-chart-body">' +
-      '<div class="donut-wrapper"><div class="donut-chart" data-final-bg="' +
-      esc(finalBg) +
-      '" style="background:' +
-      bg +
-      '"></div></div>' +
-      '<div class="donut-legend">' +
-      legendHtml +
-      "</div>" +
-      "</div></div>"
-    );
   }
 
   // ============ 订单管理 ============
@@ -4402,7 +4163,7 @@ class App {
         .from("order_items")
         .select("*")
         .eq("order_no", order.orderNo);
-      if (data) items = data.map(fromSnakeCase);
+      if (data) items = data.map(DbWriter.fromSnakeCase);
     }
 
     document.getElementById("detailModalTitle").textContent = "订单详情";
@@ -4774,16 +4535,40 @@ class App {
         this.renderClock();
       } else if (target.type === "sample") {
         await this._execDelete("samples", target.id);
-        var samples = Store.getSamples().filter(function (s) {
+        // 删除关联的存储图片
+        var oldSamples = Store.getSamples();
+        var oldS = oldSamples.find((s) => s.id === target.id);
+        if (oldS) {
+          if (oldS.imageUrl) deleteImageFromStorage(oldS.imageUrl);
+          if (oldS.thumbnailUrl) deleteImageFromStorage(oldS.thumbnailUrl);
+        }
+        var samples = oldSamples.filter(function (s) {
           return s.id !== target.id;
         });
         Store.saveSamples(samples);
-        if (this._projectView === "table") {
-          document.getElementById("projectsContainer").className = "";
-          this.renderSampleTable();
-        } else {
-          this.renderProjects();
-        }
+        this.renderSamples(this.currentProjectId);
+      } else if (target.type === "batch_samples") {
+        var ids = JSON.parse(target.id);
+        var samples = Store.getSamples();
+        var idSet = new Set(ids);
+        // 删除关联的存储图片
+        samples.forEach(function (s) {
+          if (idSet.has(s.id)) {
+            if (s.imageUrl) deleteImageFromStorage(s.imageUrl);
+            if (s.thumbnailUrl) deleteImageFromStorage(s.thumbnailUrl);
+          }
+        });
+        // 删除 DB 记录
+        ids.forEach(function (id) {
+          this._execDelete("samples", id);
+        }, this);
+        samples = samples.filter(function (s) {
+          return !idSet.has(s.id);
+        });
+        Store.saveSamples(samples);
+        this.selectedSamples.clear();
+        this.updateBatchBtns();
+        this.renderSamples(this.currentProjectId);
       } else if (target.type === "project") {
         // 删除类别及其关联的样板（含存储桶中的图片）
         var id = target.id;
@@ -4806,6 +4591,11 @@ class App {
           return s.projectId !== id;
         });
         Store.saveSamples(samples);
+        // 如果删除的是当前正在查看的类别，切回类别列表
+        if (this.currentProjectId === id) {
+          this.currentProjectId = null;
+          this.showView("projects");
+        }
         this.renderProjects();
       } else if (target.type === "batchOrders") {
         // 批量删除订单

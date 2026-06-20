@@ -1,0 +1,438 @@
+<!-- ===== 类别管理 (Projects) ===== -->
+<div id="projectsSection" class="page-section">
+  <div class="section-header">
+    <div class="dash-search">
+      <i class="ph ph-magnifying-glass dash-search-icon"></i>
+      <input
+        type="text"
+        id="projectSearchInput"
+        placeholder="搜索编号/品名/品牌..."
+        class="toolbar-input"
+        style="width: 200px; height: 29px; border-radius: 999px"
+      />
+    </div>
+    <button id="projectRefreshBtn" class="dash-action-btn" title="刷新">
+      <i class="ph ph-arrow-clockwise"></i> 刷新
+    </button>
+  </div>
+  <div class="table-filters" id="projectFilters" style="padding: 0">
+    <select id="projectBrandFilter" class="toolbar-select" style="width: 100px">
+      <option value="">全部品牌</option>
+    </select>
+    <select
+      id="projectCategoryFilter"
+      class="toolbar-select"
+      style="width: 100px"
+    >
+      <option value="">所属类别</option>
+    </select>
+    <div class="view-toggle filter-toggle" id="projectProcFilter">
+      <button class="toggle-btn active" data-value="">全部</button>
+      <button class="toggle-btn" data-value="集采">集采</button>
+      <button class="toggle-btn" data-value="非集采">非集采</button>
+    </div>
+    <div class="view-toggle filter-toggle" id="projectRangeFilter">
+      <button class="toggle-btn active" data-value="">全部</button>
+      <button class="toggle-btn" data-value="范围内">范围内</button>
+      <button class="toggle-btn" data-value="范围外">范围外</button>
+    </div>
+    <span style="flex: 1"></span>
+    <div class="view-toggle" id="projectViewToggle">
+      <button class="toggle-btn active" data-view="cards">卡片</button>
+      <button class="toggle-btn" data-view="table">列表</button>
+    </div>
+    <button id="createProjectBtn" class="dash-action-btn" title="新建类别">
+      <i class="ph ph-first-aid"></i> 新建品类
+    </button>
+  </div>
+  <div id="projectsContainer" class="card-grid"></div>
+</div>
+
+<!-- ===== 样板管理 (Samples) ===== -->
+<div id="samplesSection" class="page-section">
+  <div class="table-filters" id="sampleFilters">
+    <h2 id="currentProjectName"></h2>
+    <div class="dash-search">
+      <i class="ph ph-magnifying-glass dash-search-icon"></i>
+      <input
+        type="text"
+        id="sampleBrandFilter"
+        placeholder="编号/名称/型号/范围..."
+        autocomplete="off"
+        class="toolbar-input"
+        style="width: 200px"
+      />
+    </div>
+    <button
+      id="refreshSamplesBtn"
+      class="dash-action-btn"
+      title="刷新当前品类样板"
+    >
+      <i class="ph ph-arrow-clockwise"></i> 刷新
+    </button>
+    <button class="dash-action-btn" id="backToProjects">← 返回类别</button>
+    <span style="flex: 1"></span>
+    <div class="btn-group">
+      <button id="selectAllBtn" class="dash-action-btn">
+        <i class="ph ph-list-checks"></i> 全选
+      </button>
+      <button id="batchPrintBtn" class="dash-action-btn" disabled>
+        <i class="ph ph-printer"></i> 批量打印
+      </button>
+      <button id="batchDeleteBtn" class="dash-action-btn" disabled>
+        <i class="ph ph-trash"></i> 批量删除
+      </button>
+      <button id="editProjectSampleBtn" class="dash-action-btn">
+        编辑类别
+      </button>
+      <button id="createSampleBtn" class="dash-action-btn">
+        <i class="ph ph-plus"></i> 录入样板
+      </button>
+    </div>
+  </div>
+  <div id="samplesContainer" class="sample-grid"></div>
+</div>
+
+<!-- ===== 信息控制 (Info / Visibility) ===== -->
+<div id="infoSection" class="page-section">
+  <div id="infoContainer"></div>
+</div>
+
+<!-- ============================================================
+     EASYCOD 弹窗（类别 / 样板 / 标签 / 裁切）
+     ============================================================ -->
+
+<!-- ===== 类别编辑弹窗 ===== -->
+<div class="modal-overlay" id="projectModal">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="projectModalTitle">新建类别</h3>
+      <button class="modal-close">&times;</button>
+    </div>
+    <form id="projectForm">
+      <div class="modal-body">
+        <input type="hidden" id="projectId" />
+        <div class="form-row">
+          <div class="form-group">
+            <input
+              type="text"
+              id="projectName"
+              required
+              placeholder="类别名称"
+            />
+          </div>
+          <div class="form-group">
+            <input type="text" id="projectBrand" placeholder="品牌" />
+          </div>
+        </div>
+        <div class="form-group">
+          <textarea
+            id="projectDescription"
+            placeholder="类别描述（可选）"
+            rows="2"
+          ></textarea>
+        </div>
+        <div class="form-group">
+          <div class="vis-pill" id="projectProcCapsule">
+            <button
+              class="vis-pill-btn active"
+              data-value="非集采"
+              type="button"
+            >
+              非集采
+            </button>
+            <button class="vis-pill-btn" data-value="集采" type="button">
+              集采
+            </button>
+          </div>
+        </div>
+        <div class="form-row" id="procTimeRow" style="display: none">
+          <div class="form-group">
+            <div class="select-group">
+              <input
+                type="text"
+                id="procStartYear"
+                placeholder="开始年"
+                maxlength="4"
+                class="proj-select"
+                style="width: 80px"
+              />
+              <select id="procStartMonth">
+                <option value="">月</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="select-group">
+              <input
+                type="text"
+                id="procEndYear"
+                placeholder="结束年"
+                maxlength="4"
+                class="proj-select"
+                style="width: 80px"
+              />
+              <select id="procEndMonth">
+                <option value="">月</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelProjectBtn" class="btn btn-secondary">
+          取消
+        </button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== 样板编辑弹窗 ===== -->
+<div class="modal-overlay" id="sampleModal">
+  <div class="modal" style="max-width: 520px">
+    <div class="modal-header">
+      <h3 id="sampleModalTitle">录入样板</h3>
+      <button class="modal-close">&times;</button>
+    </div>
+    <form id="sampleForm">
+      <div class="modal-body">
+        <input type="hidden" id="sampleId" />
+        <div class="sample-img-area" id="imageUploadArea">
+          <input
+            type="file"
+            id="sampleImageInput"
+            accept="image/*"
+            capture="environment"
+            hidden
+          />
+          <div class="sample-img-placeholder" id="imagePlaceholder">
+            <div class="upl-text">点击拍照或上传图片</div>
+            <div class="upl-hint">手机端呼出相机 · 电脑端上传文件</div>
+          </div>
+          <div class="image-preview" id="imagePreview">
+            <img id="sampleImagePreview" src="" />
+          </div>
+        </div>
+        <div class="sample-form-grid">
+          <div class="form-group">
+            <div class="input-group">
+              <input
+                type="text"
+                id="sampleBrand"
+                placeholder="品牌 · 如：水墨江南"
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="input-group">
+              <input
+                type="text"
+                id="sampleName"
+                required
+                placeholder="样板名称 · 如：米黄洞石"
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="input-group">
+              <input
+                type="text"
+                id="sampleModel"
+                placeholder="型号 · 如：MHY-001"
+              />
+            </div>
+          </div>
+          <div class="form-group">
+            <div class="input-group" style="gap: 2px; flex-wrap: nowrap">
+              <input
+                type="text"
+                id="sampleCodeSeq"
+                maxlength="4"
+                placeholder="0001"
+                style="width: 56px; text-align: center; flex: none"
+              />
+              <span
+                id="sampleCodeSuffix"
+                style="
+                  font-size: 0.85rem;
+                  color: var(--text-secondary);
+                  padding: 0 8px;
+                  line-height: 36px;
+                  font-family: monospace;
+                "
+              ></span>
+            </div>
+          </div>
+        </div>
+        <div class="procurement-range-capsule" id="procurementRangeCapsule">
+          <div class="vis-pill">
+            <button class="vis-pill-btn" data-value="范围内" type="button">
+              范围内
+            </button>
+            <button
+              class="vis-pill-btn active"
+              data-value="范围外"
+              type="button"
+            >
+              范围外
+            </button>
+          </div>
+        </div>
+        <div
+          id="sampleEditFields"
+          style="
+            display: none;
+            margin-top: 12px;
+            border-top: 1px solid var(--border);
+            padding-top: 12px;
+          "
+        >
+          <div class="form-row">
+            <div class="form-group">
+              <div class="input-group">
+                <input
+                  type="text"
+                  id="sampleSpecs"
+                  placeholder="规格 · 如：600x600x20mm"
+                />
+              </div>
+            </div>
+            <div class="form-group">
+              <div class="input-group">
+                <input
+                  type="text"
+                  id="sampleColor"
+                  placeholder="颜色 · 如：米黄色"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="grid-column: 1/-1">
+              <div class="input-group">
+                <input
+                  type="text"
+                  id="sampleMaterial"
+                  placeholder="材质 · 如：天然大理石"
+                />
+              </div>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group" style="grid-column: 1/-1">
+              <div class="input-group">
+                <textarea
+                  id="sampleDescription"
+                  placeholder="描述（可选）"
+                  rows="2"
+                  style="
+                    resize: vertical;
+                    width: 100%;
+                    padding: 8px 10px;
+                    border: 1px solid var(--border);
+                    border-radius: var(--radius);
+                    font-size: 0.82rem;
+                    font-family: inherit;
+                    background: var(--bg);
+                    color: var(--text);
+                  "
+                ></textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="cancelSampleBtn" class="btn btn-secondary">
+          取消
+        </button>
+        <button type="submit" class="btn btn-primary">保存</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ===== 标签预览弹窗 ===== -->
+<div class="modal-overlay" id="labelPreviewModal"></div>
+
+<!-- ===== 批量打印标签类型选择弹窗 ===== -->
+<div class="modal-overlay" id="labelTypeModal">
+  <div class="modal" style="max-width: 380px">
+    <div class="modal-header">
+      <h3>选择打印标签</h3>
+      <button class="modal-close" id="labelTypeModalClose">&times;</button>
+    </div>
+    <div class="modal-body" style="padding: 20px 24px">
+      <div class="label-type-option">
+        <label>
+          <input type="checkbox" id="labelType1" checked />
+          <span>标签 1（标准信息 + 二维码）</span>
+        </label>
+      </div>
+      <div class="label-type-option">
+        <label>
+          <input type="checkbox" id="labelType2" checked />
+          <span>标签 2（竖向编码胶囊）</span>
+        </label>
+      </div>
+      <div class="label-type-option">
+        <label>
+          <input type="checkbox" id="labelType3" checked />
+          <span>标签 3（旋转二维码 + 型号编号）</span>
+        </label>
+      </div>
+    </div>
+    <div
+      class="modal-footer"
+      style="
+        padding: 0 24px 20px;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+      "
+    >
+      <button class="btn btn-secondary" id="labelTypeCancel">取消</button>
+      <button class="btn btn-primary" id="labelTypeConfirm">确认打印</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 图片裁切弹窗 ===== -->
+<div class="modal-overlay" id="cropModal">
+  <div class="crop-modal">
+    <div class="crop-header">
+      <button
+        id="cropDiscardBtn"
+        class="crop-header-btn discard"
+        title="取消并重拍"
+      >
+        &times;
+      </button>
+      <button id="cropApplyBtn" class="crop-header-btn apply" title="应用裁切">
+        &#10003;
+      </button>
+    </div>
+    <div class="crop-body" id="cropBody">
+      <div class="crop-stage" id="cropStage">
+        <canvas id="cropImageCanvas"></canvas>
+        <div class="crop-overlay" id="cropOverlay">
+          <div class="crop-selector" id="cropSelector">
+            <div class="crop-handle crop-handle-nw"></div>
+            <div class="crop-handle crop-handle-ne"></div>
+            <div class="crop-handle crop-handle-sw"></div>
+            <div class="crop-handle crop-handle-se"></div>
+            <div class="crop-handle crop-handle-n"></div>
+            <div class="crop-handle crop-handle-s"></div>
+            <div class="crop-handle crop-handle-w"></div>
+            <div class="crop-handle crop-handle-e"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 上传进度 Toast 容器 ===== -->
+<div id="progressToastContainer" class="progress-toast-container"></div>
