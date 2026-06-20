@@ -516,12 +516,23 @@ async function refreshSignedUrl(url) {
   if (!url || !supabaseClient) return url;
   var path = extractStoragePath(url);
   if (!path) return url;
+  // 确保 Supabase 客户端有 auth session
+  try {
+    var { data: sessionData } = await supabaseClient.auth.getSession();
+    if (!sessionData || !sessionData.session) {
+      console.warn("[refreshSignedUrl] no auth session, skipping");
+      return url;
+    }
+  } catch (e) {
+    console.warn("[refreshSignedUrl] getSession failed:", e.message);
+  }
   try {
     var result = await supabaseClient.storage
       .from("sample-images")
       .createSignedUrl(path, 604800);
     return result.data ? result.data.signedUrl : url;
   } catch (e) {
+    console.warn("[refreshSignedUrl] createSignedUrl failed:", e.message, "path:", path);
     return url;
   }
 }
