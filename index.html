@@ -8,17 +8,34 @@
     />
     <title>材料样板管理系统</title>
     <link rel="icon" type="image/jpeg" href="src/icon/logo.jpg" />
-    <link rel="stylesheet" href="src/css/style.css?v=11" />
-    <script src="https://unpkg.com/@phosphor-icons/web@2.1.1"></script>
+    <link rel="stylesheet" href="src/css/style.css?v=17" />
+    <link rel="stylesheet" href="src/css/sidebar.css?v=29" />
+    <link rel="stylesheet" href="src/css/dashboard.css?v=108" />
+    <link rel="stylesheet" href="src/css/easycod.css" />
+    <link
+      rel="stylesheet"
+      href="src/icon/phosphor-icons.css"
+      media="print"
+      onload="this.media = 'all'"
+    />
   </head>
   <body>
     <div id="toastContainer" class="toast-container"></div>
 
+    <!-- ===== 全局加载遮罩 (用于退出登录等场景) ===== -->
+    <div id="globalLoading" class="global-loading">
+      <div class="global-loading-backdrop"></div>
+      <div class="global-loading-content">
+        <div class="spinner"></div>
+        <span>退出中...</span>
+      </div>
+    </div>
+
+    <!-- ===== LOGIN ===== -->
     <div id="loginSection" class="page-section active">
       <div class="login-page">
         <div class="login-card">
           <h1>EeaySamplistCod</h1>
-
           <form id="loginForm">
             <div class="form-group">
               <input
@@ -44,299 +61,11 @@
       </div>
     </div>
 
+    <!-- ===== APP (main application) ===== -->
     <div id="appSection" class="page-section">
-      <aside class="sidebar collapsed" id="sidebar">
-        <div class="sidebar-top-group">
-          <div class="sidebar-header">
-            <div
-              class="sidebar-logo"
-              onclick="
-                window.app.showView('dashboard');
-                window.app.renderDashboard();
-              "
-            >
-              <i class="ph ph-command sidebar-logo-icon"></i>
-              <span class="sidebar-title-text">EasySoft</span>
-            </div>
-            <button
-              class="sidebar-toggle"
-              id="sidebarToggle"
-              title="折叠侧边栏"
-            >
-              <i class="ph ph-sidebar-simple toggle-icon"></i>
-            </button>
-          </div>
-          <div class="nav-separator"></div>
-          <span class="sidebar-user" id="sidebarUser">
-            <i class="ph ph-user-circle sidebar-user-icon"></i>
-            <span class="sidebar-user-name"></span>
-          </span>
-          <div class="nav-separator"></div>
-        </div>
-        <nav class="sidebar-nav">
-          <div class="sidebar-nav-scroll">
-            <!-- EasyCod -->
-            <div class="nav-group">
-              <button class="nav-group-header" data-group="easycod">
-                <span class="nav-group-label nav-group-label-expanded"
-                  >EasyCod</span
-                >
-                <span class="nav-group-label nav-group-label-collapsed"
-                  >Code</span
-                >
-                <i class="ph ph-caret-down group-arrow"></i>
-              </button>
-              <div class="nav-group-body" id="group-easycod">
-                <button id="navProjects" class="sidebar-link active">
-                  <span class="nav-link-text">样板类别</span>
-                  <i class="ph ph-list"></i>
-                </button>
-                <button id="infoBtn" class="sidebar-link">
-                  <span class="nav-link-text">信息控制</span>
-                  <i class="ph ph-contrast"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="nav-separator"></div>
-
-            <!-- EasyOrder -->
-            <div class="nav-group">
-              <button class="nav-group-header" data-group="easyorder">
-                <span class="nav-group-label nav-group-label-expanded"
-                  >EasyOrder</span
-                >
-                <span class="nav-group-label nav-group-label-collapsed"
-                  >Order</span
-                >
-                <i class="ph ph-caret-down group-arrow"></i>
-              </button>
-              <div class="nav-group-body" id="group-easyorder">
-                <button id="navOrders" class="sidebar-link">
-                  <span class="nav-link-text">订单信息</span>
-                  <i class="ph ph-list-numbers"></i>
-                </button>
-                <button id="navApply" class="sidebar-link">
-                  <span class="nav-link-text">申请汇总</span>
-                  <i class="ph ph-git-pull-request"></i>
-                </button>
-                <button id="navClock" class="sidebar-link">
-                  <span class="nav-link-text">打卡管理</span>
-                  <i class="ph ph-file-text"></i>
-                </button>
-                <button id="navSettings" class="sidebar-link">
-                  <span class="nav-link-text">相关设置</span>
-                  <i class="ph ph-gear"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="nav-separator"></div>
-
-            <!-- EasyProc -->
-            <div class="nav-group">
-              <button class="nav-group-header" data-group="easyproc">
-                <span class="nav-group-label nav-group-label-expanded"
-                  >EasyProc</span
-                >
-                <span class="nav-group-label nav-group-label-collapsed"
-                  >Proc</span
-                >
-                <i class="ph ph-caret-down group-arrow"></i>
-              </button>
-              <div class="nav-group-body" id="group-easyproc">
-                <button id="navApprovalUsers" class="sidebar-link">
-                  <span class="nav-link-text">账号权限</span>
-                  <i class="ph ph-person"></i>
-                </button>
-                <button id="navWorkflows" class="sidebar-link">
-                  <span class="nav-link-text">流程汇总</span>
-                  <i class="ph ph-table"></i>
-                </button>
-                <button id="navApprovalRecords" class="sidebar-link">
-                  <span class="nav-link-text">审批记录</span>
-                  <i class="ph ph-bell-ringing nav-icon-alert"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="nav-separator"></div>
-
-            <!-- EasyVoic -->
-            <div class="nav-group">
-              <button class="nav-group-header" data-group="easyvoic">
-                <span class="nav-group-label nav-group-label-expanded"
-                  >EasyVoic</span
-                >
-                <span class="nav-group-label nav-group-label-collapsed"
-                  >Voice</span
-                >
-                <i class="ph ph-caret-down group-arrow"></i>
-              </button>
-              <div class="nav-group-body" id="group-easyvoic">
-                <button id="navVoiceAssistant" class="sidebar-link">
-                  <span class="nav-link-text">语音助手</span>
-                  <i class="ph ph-archive"></i>
-                </button>
-              </div>
-            </div>
-
-            <div class="nav-separator"></div>
-
-            <!-- EasyPdf -->
-            <div class="nav-group">
-              <button class="nav-group-header" data-group="easypdf">
-                <span class="nav-group-label nav-group-label-expanded"
-                  >EasyPdf</span
-                >
-                <span class="nav-group-label nav-group-label-collapsed"
-                  >Pdf</span
-                >
-                <i class="ph ph-caret-down group-arrow"></i>
-              </button>
-              <div class="nav-group-body" id="group-easypdf">
-                <button id="navDocStore" class="sidebar-link">
-                  <span class="nav-link-text">文档存储</span>
-                  <i class="ph ph-laptop"></i>
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="sidebar-nav-bottom">
-            <div class="nav-separator"></div>
-
-            <button
-              id="navBottomSettings"
-              class="sidebar-link sidebar-settings"
-            >
-              <span class="nav-link-text">设置</span>
-              <i class="ph ph-gear"></i>
-            </button>
-
-            <div class="nav-separator"></div>
-
-            <button id="logoutBtn" class="sidebar-link sidebar-logout">
-              <span class="nav-link-text">退出</span>
-              <i class="ph ph-sign-out"></i>
-            </button>
-          </div>
-        </nav>
-      </aside>
-
       <main class="main-content">
         <div class="container">
-          <div id="dashboardSection" class="page-section">
-            <div class="section-header">
-              <h2>仪表盘</h2>
-            </div>
-            <div id="dashboardContainer"></div>
-          </div>
-
-          <div id="projectsSection" class="page-section">
-            <div class="section-header">
-              <h2>类别</h2>
-              <button id="projectRefreshBtn" class="toolbar-btn btn-secondary">
-                ⟳ 刷新
-              </button>
-            </div>
-            <div class="table-filters" id="projectFilters">
-              <input
-                type="text"
-                id="projectSearchInput"
-                placeholder="🔍 搜索编号/品名/品牌..."
-                class="toolbar-input"
-                style="width: 100px"
-              />
-              <select
-                id="projectBrandFilter"
-                class="toolbar-select"
-                style="width: 100px"
-              >
-                <option value="">全部品牌</option>
-              </select>
-              <select
-                id="projectCategoryFilter"
-                class="toolbar-select"
-                style="width: 100px"
-              >
-                <option value="">所属类别</option>
-              </select>
-              <select
-                id="projectProcFilter"
-                class="toolbar-select"
-                style="width: 100px"
-              >
-                <option value="">是否集采</option>
-                <option value="集采">集采</option>
-                <option value="非集采">非集采</option>
-              </select>
-              <select
-                id="projectRangeFilter"
-                class="toolbar-select"
-                style="width: 100px"
-              >
-                <option value="">集采范围</option>
-                <option value="范围内">范围内</option>
-                <option value="范围外">范围外</option>
-              </select>
-              <button id="projectQueryBtn" class="toolbar-btn btn-secondary">
-                查询
-              </button>
-              <span style="flex: 1"></span>
-              <div class="view-toggle" id="projectViewToggle">
-                <button class="toggle-btn active" data-view="cards">
-                  📇 卡片
-                </button>
-                <button class="toggle-btn" data-view="table">📋 列表</button>
-              </div>
-              <button id="createProjectBtn" class="toolbar-btn btn-primary">
-                + 新建类别
-              </button>
-            </div>
-            <div id="projectsContainer" class="card-grid"></div>
-          </div>
-
-          <div id="samplesSection" class="page-section">
-            <div class="section-header">
-              <h2 id="currentProjectName"></h2>
-              <button class="back-btn" id="backToProjects">← 返回类别</button>
-            </div>
-            <div class="table-filters" id="sampleFilters">
-              <input
-                type="text"
-                id="sampleBrandFilter"
-                placeholder="🔍 编号/名称/型号/范围..."
-                autocomplete="off"
-                class="toolbar-input"
-                style="width: 140px"
-              />
-              <span style="flex: 1"></span>
-              <div class="btn-group">
-                <button id="selectAllBtn" class="toolbar-btn btn-secondary">
-                  全选
-                </button>
-                <button
-                  id="batchPrintBtn"
-                  class="toolbar-btn btn-secondary"
-                  disabled
-                >
-                  批量打印
-                </button>
-                <button
-                  id="editProjectSampleBtn"
-                  class="toolbar-btn btn-secondary"
-                >
-                  编辑类别
-                </button>
-                <button id="createSampleBtn" class="toolbar-btn btn-primary">
-                  + 录入样板
-                </button>
-              </div>
-            </div>
-            <div id="samplesContainer" class="sample-grid"></div>
-          </div>
-
+          <!-- ===== 标签打印 (Labels) ===== -->
           <div id="labelsSection" class="page-section">
             <div class="print-toolbar">
               <div>
@@ -350,18 +79,14 @@
             <div id="labelsContainer" class="print-labels-container"></div>
           </div>
 
+          <!-- ===== 样板详情 (Sample Detail) ===== -->
           <div id="sampleDetailSection" class="page-section">
-            <div class="section-header">
-              <button class="back-btn" id="backFromDetail">← 返回</button>
+            <div class="detail-tab-header">
+              <div class="section-header">
+                <button class="back-btn" id="backFromDetail">← 返回</button>
+              </div>
             </div>
             <div id="sampleDetailContainer"></div>
-          </div>
-
-          <div id="infoSection" class="page-section">
-            <div class="section-header">
-              <h2>信息</h2>
-            </div>
-            <div id="infoContainer"></div>
           </div>
 
           <div id="ordersSection" class="page-section">
@@ -484,6 +209,7 @@
             <div id="applyContainer"></div>
           </div>
 
+          <!-- ===== 打卡管理 (Clock) ===== -->
           <div id="clockSection" class="page-section">
             <div class="section-header">
               <h2>打卡管理</h2>
@@ -560,6 +286,7 @@
           </div>
 
           <!-- 流程编辑 -->
+          <!-- ===== 流程编辑 (Workflow) ===== -->
           <div id="workflowSection" class="page-section">
             <div class="section-header">
               <h2>流程编辑</h2>
@@ -588,6 +315,7 @@
           </div>
 
           <!-- 语音助手管理 - 依维五库 -->
+          <!-- ===== 语音助手 (Voice Assistant) ===== -->
           <div id="voiceAssistantSection" class="page-section">
             <div class="section-header">
               <h2>语音助手 · 依维（Evi）</h2>
@@ -701,355 +429,6 @@
       </main>
     </div>
 
-    <div class="modal-overlay" id="projectModal">
-      <div class="modal">
-        <div class="modal-header">
-          <h3 id="projectModalTitle">新建类别</h3>
-          <button class="modal-close">&times;</button>
-        </div>
-        <form id="projectForm">
-          <div class="modal-body">
-            <input type="hidden" id="projectId" />
-            <div class="form-row">
-              <div class="form-group">
-                <input
-                  type="text"
-                  id="projectName"
-                  required
-                  placeholder="类别名称"
-                />
-              </div>
-              <div class="form-group">
-                <input type="text" id="projectBrand" placeholder="品牌" />
-              </div>
-            </div>
-            <div class="form-group">
-              <textarea
-                id="projectDescription"
-                placeholder="类别描述（可选）"
-                rows="2"
-              ></textarea>
-            </div>
-            <div class="form-group">
-              <div class="vis-pill" id="projectProcCapsule">
-                <button
-                  class="vis-pill-btn active"
-                  data-value="非集采"
-                  type="button"
-                >
-                  非集采
-                </button>
-                <button class="vis-pill-btn" data-value="集采" type="button">
-                  集采
-                </button>
-              </div>
-            </div>
-            <div class="form-row" id="procTimeRow" style="display: none">
-              <div class="form-group">
-                <div class="select-group">
-                  <input
-                    type="text"
-                    id="procStartYear"
-                    placeholder="开始年"
-                    maxlength="4"
-                    class="proj-select"
-                    style="width: 80px"
-                  />
-                  <select id="procStartMonth">
-                    <option value="">月</option>
-                  </select>
-                </div>
-              </div>
-              <div class="form-group">
-                <div class="select-group">
-                  <input
-                    type="text"
-                    id="procEndYear"
-                    placeholder="结束年"
-                    maxlength="4"
-                    class="proj-select"
-                    style="width: 80px"
-                  />
-                  <select id="procEndMonth">
-                    <option value="">月</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              id="cancelProjectBtn"
-              class="btn btn-secondary"
-            >
-              取消
-            </button>
-            <button type="submit" class="btn btn-primary">保存</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="modal-overlay" id="sampleModal">
-      <div class="modal" style="max-width: 520px">
-        <div class="modal-header">
-          <h3 id="sampleModalTitle">录入样板</h3>
-          <button class="modal-close">&times;</button>
-        </div>
-        <form id="sampleForm">
-          <div class="modal-body">
-            <input type="hidden" id="sampleId" />
-            <div class="sample-img-area" id="imageUploadArea">
-              <input
-                type="file"
-                id="sampleImageInput"
-                accept="image/*"
-                capture="environment"
-                hidden
-              />
-              <div class="sample-img-placeholder" id="imagePlaceholder">
-                <div class="upl-icon">
-                  <img
-                    src="src/icon/camera.svg"
-                    alt="拍照"
-                    class="upl-icon-svg"
-                  />
-                </div>
-                <div class="upl-text">点击拍照或上传图片</div>
-                <div class="upl-hint">手机端呼出相机 · 电脑端上传文件</div>
-              </div>
-              <div class="image-preview" id="imagePreview">
-                <img id="sampleImagePreview" src="" />
-              </div>
-            </div>
-            <div class="sample-form-grid">
-              <div class="form-group">
-                <div class="input-group">
-                  <input
-                    type="text"
-                    id="sampleBrand"
-                    placeholder="品牌 · 如：水墨江南"
-                  />
-                </div>
-              </div>
-              <div class="form-group">
-                <div class="input-group">
-                  <input
-                    type="text"
-                    id="sampleName"
-                    required
-                    placeholder="样板名称 · 如：米黄洞石"
-                  />
-                </div>
-              </div>
-              <div class="form-group">
-                <div class="input-group">
-                  <input
-                    type="text"
-                    id="sampleModel"
-                    placeholder="型号 · 如：MHY-001"
-                  />
-                </div>
-              </div>
-              <div class="form-group">
-                <div class="input-group" style="gap: 2px; flex-wrap: nowrap">
-                  <input
-                    type="text"
-                    id="sampleCodeSeq"
-                    maxlength="4"
-                    placeholder="0001"
-                    style="width: 56px; text-align: center; flex: none"
-                  />
-                  <span
-                    id="sampleCodeSuffix"
-                    style="
-                      font-size: 0.85rem;
-                      color: var(--text-secondary);
-                      padding: 0 8px;
-                      line-height: 36px;
-                      font-family: monospace;
-                    "
-                  ></span>
-                </div>
-              </div>
-            </div>
-            <div class="procurement-range-capsule" id="procurementRangeCapsule">
-              <div class="vis-pill">
-                <button class="vis-pill-btn" data-value="范围内" type="button">
-                  范围内
-                </button>
-                <button
-                  class="vis-pill-btn active"
-                  data-value="范围外"
-                  type="button"
-                >
-                  范围外
-                </button>
-              </div>
-            </div>
-            <div
-              id="sampleEditFields"
-              style="
-                display: none;
-                margin-top: 12px;
-                border-top: 1px solid var(--border);
-                padding-top: 12px;
-              "
-            >
-              <div class="form-row">
-                <div class="form-group">
-                  <div class="input-group">
-                    <input
-                      type="text"
-                      id="sampleSpecs"
-                      placeholder="规格 · 如：600x600x20mm"
-                    />
-                  </div>
-                </div>
-                <div class="form-group">
-                  <div class="input-group">
-                    <input
-                      type="text"
-                      id="sampleColor"
-                      placeholder="颜色 · 如：米黄色"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group" style="grid-column: 1/-1">
-                  <div class="input-group">
-                    <input
-                      type="text"
-                      id="sampleMaterial"
-                      placeholder="材质 · 如：天然大理石"
-                    />
-                  </div>
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group" style="grid-column: 1/-1">
-                  <div class="input-group">
-                    <textarea
-                      id="sampleDescription"
-                      placeholder="描述（可选）"
-                      rows="2"
-                      style="
-                        resize: vertical;
-                        width: 100%;
-                        padding: 8px 10px;
-                        border: 1px solid var(--border);
-                        border-radius: var(--radius);
-                        font-size: 0.82rem;
-                        font-family: inherit;
-                        background: var(--bg);
-                        color: var(--text);
-                      "
-                    ></textarea>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div class="modal-footer">
-            <button
-              type="button"
-              id="cancelSampleBtn"
-              class="btn btn-secondary"
-            >
-              取消
-            </button>
-            <button type="submit" class="btn btn-primary">保存</button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <div class="modal-overlay" id="labelPreviewModal"></div>
-
-    <!-- 批量打印标签类型选择弹窗 -->
-    <div class="modal-overlay" id="labelTypeModal">
-      <div class="modal" style="max-width: 380px">
-        <div class="modal-header">
-          <h3>选择打印标签</h3>
-          <button class="modal-close" id="labelTypeModalClose">&times;</button>
-        </div>
-        <div class="modal-body" style="padding: 20px 24px">
-          <div class="label-type-option">
-            <label>
-              <input type="checkbox" id="labelType1" checked />
-              <span>标签 1（标准信息 + 二维码）</span>
-            </label>
-          </div>
-          <div class="label-type-option">
-            <label>
-              <input type="checkbox" id="labelType2" checked />
-              <span>标签 2（竖向编码胶囊）</span>
-            </label>
-          </div>
-          <div class="label-type-option">
-            <label>
-              <input type="checkbox" id="labelType3" checked />
-              <span>标签 3（旋转二维码 + 型号编号）</span>
-            </label>
-          </div>
-        </div>
-        <div
-          class="modal-footer"
-          style="
-            padding: 0 24px 20px;
-            display: flex;
-            gap: 8px;
-            justify-content: flex-end;
-          "
-        >
-          <button class="btn btn-secondary" id="labelTypeCancel">取消</button>
-          <button class="btn btn-primary" id="labelTypeConfirm">
-            确认打印
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-overlay" id="cropModal">
-      <div class="crop-modal">
-        <div class="crop-header">
-          <button
-            id="cropDiscardBtn"
-            class="crop-header-btn discard"
-            title="取消并重拍"
-          >
-            &times;
-          </button>
-          <button
-            id="cropApplyBtn"
-            class="crop-header-btn apply"
-            title="应用裁切"
-          >
-            &#10003;
-          </button>
-        </div>
-        <div class="crop-body" id="cropBody">
-          <div class="crop-stage" id="cropStage">
-            <canvas id="cropImageCanvas"></canvas>
-            <div class="crop-overlay" id="cropOverlay">
-              <div class="crop-selector" id="cropSelector">
-                <div class="crop-handle crop-handle-nw"></div>
-                <div class="crop-handle crop-handle-ne"></div>
-                <div class="crop-handle crop-handle-sw"></div>
-                <div class="crop-handle crop-handle-se"></div>
-                <div class="crop-handle crop-handle-n"></div>
-                <div class="crop-handle crop-handle-s"></div>
-                <div class="crop-handle crop-handle-w"></div>
-                <div class="crop-handle crop-handle-e"></div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <!-- 删除确认弹窗 -->
     <div class="modal-overlay" id="deleteConfirmModal">
       <div class="modal" style="max-width: 400px">
@@ -1103,6 +482,7 @@
     </div>
 
     <!-- 详情弹窗 -->
+    <!-- ===== 详情弹窗 ===== -->
     <div class="modal-overlay" id="detailModal">
       <div class="modal" style="max-width: 560px">
         <div class="modal-header">
@@ -1117,10 +497,14 @@
         </div>
       </div>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
-    <script src="src/js/sidebar.js"></script>
-    <script src="src/js/app.js?v=5"></script>
   </body>
+  <script src="src/lib/supabase.min.js"></script>
+  <script src="src/lib/qrcode.min.js"></script>
+  <script src="src/js/login.js?v=2"></script>
+  <script src="src/js/dashboard.js"></script>
+  <script src="src/js/sidebar.js"></script>
+  <script src="src/js/app/db-writer.js?v=2"></script>
+  <script src="src/js/app/upload-manager.js?v=2"></script>
+  <script src="src/js/easycod.js?v=3"></script>
+  <script src="src/js/app.js?v=17"></script>
 </html>
