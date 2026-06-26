@@ -17,5 +17,6 @@ node_modules/
 Thumbs.db
 .DS_Store
 
-# 临时文件
+# 改动日志
+改动日志/
 pencil-new.pen

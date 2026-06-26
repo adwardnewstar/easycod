@@ -55,7 +55,7 @@ a:hover {
 
 .container {
   margin: 5px 0;
-  padding: 0 20px 15px;
+  padding: 5px 20px 15px;
   display: flex;
   flex-direction: column;
   flex: 1;
@@ -207,6 +207,7 @@ a:hover {
 .toolbar-btn.btn-primary {
   background: var(--primary);
   color: #fff;
+  border: 1px solid transparent;
 }
 .toolbar-btn.btn-primary:hover {
   background: var(--primary-dark);
@@ -261,6 +262,7 @@ a:hover {
 }
 
 #projectRefreshBtn,
+#projectFilterToggle,
 #refreshSamplesBtn,
 #projectQueryBtn,
 #createProjectBtn,
@@ -270,6 +272,7 @@ a:hover {
 #editProjectSampleBtn,
 #createSampleBtn,
 #backToProjects,
+#sampleFilterToggle,
 #sampleDetailSection > .section-header {
   border-radius: 999px;
   background: radial-gradient(circle at -50% -50%, #ffffff, #e0e0e0);
@@ -369,6 +372,7 @@ a:hover {
 .btn-primary {
   background: var(--primary);
   color: #fff;
+  border: 1px solid transparent;
 }
 
 .btn-primary:hover {
@@ -536,6 +540,11 @@ a:hover {
   min-width: 0;
 }
 
+/* Mobile count badge — hidden on desktop */
+.card-count {
+  display: none;
+}
+
 .card-meta-brand {
   font-size: 0.6rem;
   color: var(--primary);
@@ -701,6 +710,11 @@ a:hover {
   border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
+/* 手机端样本卡片遮罩 — 桌面端隐藏 */
+.sample-card-overlay {
+  display: none;
+}
+
 .btn-label-print {
   position: absolute;
   top: 8px;
@@ -722,6 +736,45 @@ a:hover {
 
 .btn-label-print:hover {
   background: rgba(0, 0, 0, 0.8);
+}
+
+/* 缩略图缺失 — 重新生成按钮（桌面端，九宫格居中） */
+.thumb-regen-btn {
+  position: absolute;
+  top: calc(100% / 3);
+  left: calc(100% / 3);
+  width: calc(100% / 3);
+  height: calc(100% / 3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ff3b30;
+  border: none;
+  border-radius: 8px;
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  z-index: 3;
+  box-shadow: 0 0 12px rgba(255, 59, 48, 0.6);
+  transition:
+    transform 0.2s,
+    box-shadow 0.2s;
+}
+.thumb-regen-btn:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 20px rgba(255, 59, 48, 0.85);
+}
+.thumb-regen-btn.regenerating {
+  pointer-events: none;
+  opacity: 0.85;
+}
+@keyframes thumbRegenSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.thumb-regen-btn.regenerating i {
+  animation: thumbRegenSpin 1s linear infinite;
 }
 
 /* ============================================================
@@ -790,6 +843,7 @@ a:hover {
 }
 
 .modal-body .form-row {
+  display: flex;
   gap: 10px;
   margin-bottom: 12px;
 }
@@ -1262,6 +1316,19 @@ a:hover {
 }
 
 /* Responsive */
+/* ---- Section header actions (filter + refresh row) ---- */
+.section-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Mobile filter toggle — hidden on desktop */
+.mobile-filter-btn,
+.sample-filter-toggle {
+  display: none;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 0 12px;
@@ -1276,18 +1343,328 @@ a:hover {
     margin: 0 12px;
   }
 
+  /* ---- 类别卡片 3 列正方形 ---- */
   .card-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(3, 1fr);
   }
 
-  .sample-grid {
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 10px;
+  .card {
+    aspect-ratio: 1;
+    position: relative;
+  }
+
+  /* 手机端隐藏卡片底部按钮，改用长按菜单 */
+  .card-actions {
+    display: none;
+  }
+
+  /* ---- 手机端卡片重排：名称+数量 | 品牌居中 | 集采底部 ---- */
+  .card-body {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    height: 100%;
+    padding: 10px;
+    gap: 0;
+    position: relative;
+  }
+  .card-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    overflow: visible;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .card-title {
+    font-size: 0.85rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex: 1;
+    min-width: 0;
+  }
+  /* Count in title row (right-aligned) */
+  .card-count {
+    display: inline;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--text-light);
+    flex-shrink: 0;
+  }
+  /* Brand centered in card middle */
+  .card-meta-brand {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+    font-size: 0.78rem;
+    color: var(--primary);
+    background: transparent;
+    padding: 0;
+    border-radius: 0;
+    font-weight: 500;
+  }
+  /* Hide description */
+  .card-text {
+    display: none;
+  }
+  /* Meta at bottom: hide count, show only procurement */
+  .card-meta {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    margin-top: 0;
+    gap: 4px;
+    flex-shrink: 0;
+  }
+  .card-meta > span:first-child {
+    display: none;
+  }
+  .card .card-badge.procurement + span {
+    display: none;
+  }
+  /* Make procurement badge smaller */
+  .card .card-badge {
+    font-size: 0.7rem;
+    padding: 2px 8px;
   }
 
   .section-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  /* ---- 筛选工具栏折叠式 ---- */
+  .mobile-filter-btn {
+    display: inline-flex;
+  }
+
+  #projectFilters {
+    display: none;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 12px !important;
+    background: var(--card-bg, #fff) !important;
+    border: 1px solid var(--border, #e5e5e5) !important;
+    border-radius: var(--radius, 8px) !important;
+    margin-bottom: 12px;
+  }
+  #projectFilters.filters-visible {
+    display: flex;
+  }
+
+  /* Filter items: 2-column grid */
+  #projectFilters .toolbar-select {
+    width: calc(50% - 4px) !important;
+    font-size: 0.75rem;
+    height: 30px;
+  }
+
+  #projectFilters .view-toggle.filter-toggle {
+    width: calc(50% - 4px);
+    height: 30px;
+  }
+  #projectFilters .view-toggle.filter-toggle .toggle-btn {
+    flex: 1;
+    text-align: center;
+    padding: 0 6px;
+    font-size: 0.72rem;
+    height: 26px;
+    white-space: nowrap;
+  }
+
+  /* Hide spacer */
+  #projectFilters span[style*="flex:"] {
+    display: none;
+  }
+
+  /* View toggle + create button row */
+  #projectViewToggle {
+    width: calc(50% - 4px);
+    height: 30px;
+  }
+  #projectViewToggle .toggle-btn {
+    flex: 1;
+    text-align: center;
+    font-size: 0.72rem;
+    height: 26px;
+  }
+  #createProjectBtn {
+    width: calc(50% - 4px);
+    justify-content: center;
+    font-size: 0.75rem;
+  }
+
+  /* ---- end filter panel ---- */
+
+  /* ---- 样板页面工具栏手机端：折叠式 ---- */
+  #sampleFilters {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  #sampleFilters #currentProjectName {
+    display: none;
+  }
+  #sampleFilters .dash-search {
+    order: -1;
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  #sampleFilters > span[style*="flex:"] {
+    display: none;
+  }
+  #sampleFilters #backToProjects {
+    order: 0;
+  }
+  #sampleFilters #refreshSamplesBtn {
+    order: 1;
+  }
+  #sampleFilters .sample-filter-toggle {
+    order: 3;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: auto;
+  }
+  /* 按钮组默认隐藏，展开时显示 */
+  #sampleFilters .btn-group {
+    display: none;
+    order: 4;
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 8px;
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #e5e5e5);
+    border-radius: var(--radius, 8px);
+    margin-top: 4px;
+  }
+  #sampleFilters .btn-group.mobile-open {
+    display: flex;
+  }
+  #sampleFilters .btn-group .dash-action-btn {
+    font-size: 0.75rem;
+    padding: 4px 10px;
+  }
+  /* ---- end sample filters mobile ---- */
+
+  .sample-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+  }
+
+  .sample-card {
+    aspect-ratio: 1;
+    overflow: hidden;
+  }
+
+  .sample-card .sample-image,
+  .sample-card .sample-image-placeholder {
+    height: 65%;
+    aspect-ratio: auto;
+  }
+
+  .sample-card .sample-info {
+    padding: 6px 8px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 2px;
+  }
+
+  .sample-card .sample-title-row h3 {
+    font-size: 0.72rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sample-card .sample-title-row .sample-model {
+    font-size: 0.65rem;
+    max-width: 40%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sample-card .sample-code {
+    font-size: 0.65rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sample-card .sample-scope {
+    font-size: 0.6rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sample-card .card-actions {
+    display: none;
+  }
+
+  .sample-card .sample-checkbox {
+    display: none;
+  }
+
+  .sample-card .btn-label-print {
+    display: none;
+  }
+
+  /* 手机端隐藏缩略图重新生成按钮 */
+  .thumb-regen-btn {
+    display: none;
+  }
+
+  /* 样本卡片灰色遮罩 + 名称/编号文字 */
+  .sample-card .sample-card-overlay {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 3;
+    background: rgba(0, 0, 0, 0.55);
+    color: #fff;
+    gap: 6px;
+    pointer-events: none;
+    padding: 0 8px;
+    box-sizing: border-box;
+  }
+  .sample-card .sample-card-overlay .sco-name {
+    font-size: 1rem;
+    font-weight: 700;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .sample-card .sample-card-overlay .sco-code {
+    font-size: 0.75rem;
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+    text-align: center;
+    line-height: 1.2;
+  }
+  .sample-card .sample-image-wrap {
+    position: relative;
   }
 
   .detail-row {
@@ -1329,18 +1706,103 @@ a:hover {
     margin: 12px;
   }
 
+  /* 标签预览弹窗 - 允许横向滚动 */
+  #labelPreviewModal.active {
+    justify-content: flex-start;
+    padding: 40px 20px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  #labelPreviewModal.active .print-label-wrap {
+    flex-shrink: 0;
+  }
+
   .print-toolbar {
     flex-direction: column;
     align-items: stretch;
   }
 }
 
-@media (max-width: 480px) {
-  .sample-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 8px;
-  }
+/* ============ 相关设置 - Settings Page ============ */
+.settings-page {
+}
 
+.settings-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.settings-map-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.settings-map {
+  width: 100%;
+  height: 380px;
+}
+.settings-map-tip {
+  margin: 0;
+  padding: 8px 16px;
+  font-size: 0.78rem;
+  color: var(--text-light);
+  text-align: center;
+  border-top: 1px solid var(--border);
+  background: #fafafa;
+}
+.settings-form-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.settings-label {
+  font-size: 0.8rem;
+  color: var(--text-light);
+}
+.settings-input {
+  width: 100%;
+}
+.settings-row {
+  display: flex;
+  gap: 12px;
+}
+.settings-actions {
+  margin-top: 6px;
+}
+.settings-update-time {
+  font-size: 0.75rem;
+  color: var(--text-light);
+  text-align: right;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .settings-page {
+    max-width: 100%;
+  }
+  .settings-map {
+    height: 260px;
+  }
+  .settings-row {
+    flex-direction: column;
+    gap: 14px;
+  }
+  .settings-form-section {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
   .sample-info {
     padding: 8px;
   }
@@ -1392,6 +1854,10 @@ a:hover {
 }
 
 /* Print Styles */
+@page {
+  margin: 5mm;
+}
+
 @media print {
   /* 只保留标签内容，其余全部隐藏 */
   .sidebar,
@@ -1420,58 +1886,61 @@ a:hover {
   .print-labels-container {
     display: flex !important;
     flex-wrap: wrap;
-    gap: 6mm;
-    padding: 8mm;
+    gap: 3mm;
+    padding: 3mm;
     justify-content: flex-start;
     align-items: flex-start;
   }
 
-  .print-label-wrap {
-    break-inside: avoid;
-    display: flex;
-  }
-
-  .print-label {
-    flex: none !important;
-    width: 7cm;
-    background: #1d1d1f !important;
-    color: #fff !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    padding: 16px;
-    border-radius: 8px;
-  }
-
-  .print-label-capsule {
-    background: #1d1d1f !important;
-    -webkit-print-color-adjust: exact;
-    print-color-adjust: exact;
-    border-radius: 999px;
-  }
-
+  /* 打印时保留标签背景色 */
+  .print-label,
+  .print-label-capsule,
   .print-label-extra {
-    background: #1d1d1f !important;
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;
-    border-radius: 10px;
   }
+}
 
-  .print-label-header {
-    color: #fff !important;
-    border-bottom-color: #fff !important;
-  }
+/* ===== 标签预览（屏幕 & 打印通用） ===== */
+.print-label-wrap {
+  break-inside: avoid;
+  display: flex;
+}
 
-  .print-label-row .label {
-    color: rgba(255, 255, 255, 0.6) !important;
-  }
+.print-label {
+  flex: none;
+  width: 7cm;
+  background: #1d1d1f;
+  color: #fff;
+  padding: 16px;
+  border-radius: 8px;
+}
 
-  .print-label-row .value {
-    color: #fff !important;
-  }
+.print-label-capsule {
+  background: #1d1d1f;
+  border-radius: 999px;
+}
 
-  .print-label-qrcode {
-    border-top-color: #fff !important;
-  }
+.print-label-extra {
+  background: #1d1d1f;
+  border-radius: 10px;
+}
+
+.print-label-header {
+  color: #fff;
+  border-bottom-color: #fff;
+}
+
+.print-label-row .label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.print-label-row .value {
+  color: #fff;
+}
+
+.print-label-qrcode {
+  border-top-color: #fff;
 }
 
 /* Sensitive Info */

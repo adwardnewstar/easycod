@@ -150,7 +150,7 @@
   grid-column: 2;
 }
 
-@media (max-width: 480px) {
+@media (max-width: 768px) {
   .sample-form-grid {
     grid-template-columns: 1fr;
   }
@@ -852,5 +852,178 @@
 @media (max-width: 768px) {
   .print-labels-container {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ============================================================
+   手机端：项目卡片长按 → 底部操作菜单
+   ============================================================ */
+
+/* 遮罩层 */
+.project-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 2000;
+  animation: sheetFadeIn 0.25s ease;
+}
+
+/* 底部弹出面板 */
+.project-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #f8f9fc;
+  border-radius: 18px 18px 0 0;
+  z-index: 2001;
+  padding: 0 0 calc(8px + env(safe-area-inset-bottom, 4px));
+  transform: translateY(100%);
+  transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.project-sheet.open {
+  transform: translateY(0);
+}
+
+/* ---- 拖拽手柄 ---- */
+.sheet-handle-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0 6px;
+}
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: #d1d5db;
+}
+
+/* ---- 项目完整信息区 ---- */
+.sheet-info {
+  background: #fff;
+  margin: 0 12px 12px;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+.sheet-info-name {
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1f2937;
+  margin-bottom: 8px;
+  line-height: 1.3;
+}
+.sheet-info-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #4b5563;
+  margin-bottom: 4px;
+}
+.sheet-info-label {
+  color: #9ca3af;
+  min-width: 3em;
+  flex-shrink: 0;
+}
+.sheet-info-desc {
+  font-size: 0.78rem;
+  color: #6b7280;
+  background: #f9fafb;
+  padding: 8px 10px;
+  border-radius: 8px;
+  margin: 6px 0;
+  line-height: 1.5;
+}
+.sheet-info-proc {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+/* ---- 操作区 ---- */
+.sheet-actions {
+  background: #fff;
+  margin: 0 12px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
+/* ---- 单个操作按钮 ---- */
+.sheet-action {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 14px 16px;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.12s;
+  position: relative;
+}
+.sheet-action:active {
+  background: #f3f4f6;
+}
+/* 分隔线 */
+.sheet-action + .sheet-action::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 52px;
+  right: 0;
+  height: 1px;
+  background: #f0f0f0;
+}
+
+/* ---- 操作图标 ---- */
+.sheet-act-icon {
+  flex-shrink: 0;
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f4ff;
+  color: #4f6ef7;
+}
+.sheet-action--danger .sheet-act-icon {
+  background: #fef2f2;
+  color: #ef4444;
+}
+
+/* ---- 操作文字 ---- */
+.sheet-act-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.sheet-act-label {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #1f2937;
+}
+.sheet-act-desc {
+  font-size: 0.72rem;
+  color: #9ca3af;
+}
+.sheet-action--danger .sheet-act-label {
+  color: #dc2626;
+}
+
+@keyframes sheetFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
   }
 }

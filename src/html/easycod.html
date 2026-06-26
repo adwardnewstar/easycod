@@ -11,9 +11,18 @@
         style="width: 200px; height: 29px; border-radius: 999px"
       />
     </div>
-    <button id="projectRefreshBtn" class="dash-action-btn" title="刷新">
-      <i class="ph ph-arrow-clockwise"></i> 刷新
-    </button>
+    <div class="section-header-actions">
+      <button
+        id="projectFilterToggle"
+        class="dash-action-btn mobile-filter-btn"
+        title="筛选"
+      >
+        <i class="ph ph-funnel"></i> 筛选
+      </button>
+      <button id="projectRefreshBtn" class="dash-action-btn" title="刷新">
+        <i class="ph ph-arrow-clockwise"></i> 刷新
+      </button>
+    </div>
   </div>
   <div class="table-filters" id="projectFilters" style="padding: 0">
     <select id="projectBrandFilter" class="toolbar-select" style="width: 100px">
@@ -61,6 +70,8 @@
         autocomplete="off"
         class="toolbar-input"
         style="width: 200px"
+        readonly
+        onfocus="this.removeAttribute('readonly')"
       />
     </div>
     <button
@@ -71,6 +82,13 @@
       <i class="ph ph-arrow-clockwise"></i> 刷新
     </button>
     <button class="dash-action-btn" id="backToProjects">← 返回类别</button>
+    <button
+      class="dash-action-btn sample-filter-toggle"
+      id="sampleFilterToggle"
+      title="更多操作"
+    >
+      <i class="ph ph-dots-three-outline"></i> 更多
+    </button>
     <span style="flex: 1"></span>
     <div class="btn-group">
       <button id="selectAllBtn" class="dash-action-btn">

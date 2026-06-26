@@ -8,7 +8,7 @@
     />
     <title>材料样板管理系统</title>
     <link rel="icon" type="image/jpeg" href="src/icon/logo.jpg" />
-    <link rel="stylesheet" href="src/css/style.css?v=17" />
+    <link rel="stylesheet" href="src/css/style.css?v=20260624" />
     <link rel="stylesheet" href="src/css/sidebar.css?v=29" />
     <link rel="stylesheet" href="src/css/dashboard.css?v=108" />
     <link rel="stylesheet" href="src/css/easycod.css" />
@@ -88,343 +88,6 @@
             </div>
             <div id="sampleDetailContainer"></div>
           </div>
-
-          <div id="ordersSection" class="page-section">
-            <div class="section-header">
-              <h2>订单管理</h2>
-              <button id="refreshOrdersBtn" class="toolbar-btn btn-secondary">
-                ⟳ 刷新
-              </button>
-            </div>
-            <div class="table-filters">
-              <input
-                type="text"
-                id="orderSearchInput"
-                placeholder="订单号"
-                autocomplete="off"
-                class="toolbar-input"
-                style="width: 100px"
-              />
-              <select
-                id="orderStatusFilter"
-                class="toolbar-select"
-                style="width: 100px"
-              >
-                <option value="">全部状态</option>
-                <option value="未提交">未提交</option>
-                <option value="已收录">已收录</option>
-              </select>
-              <input
-                type="date"
-                id="orderDateStart"
-                class="toolbar-date"
-                style="width: 100px"
-              />
-              <input
-                type="date"
-                id="orderDateEnd"
-                class="toolbar-date"
-                style="width: 100px"
-              />
-              <button id="orderQueryBtn" class="toolbar-btn btn-secondary">
-                查询
-              </button>
-              <span style="flex: 1"></span>
-              <button id="createOrderBtn" class="toolbar-btn btn-primary">
-                + 录入
-              </button>
-              <button id="selectAllOrders" class="toolbar-btn btn-secondary">
-                全选
-              </button>
-              <button id="batchDeleteOrdersBtn" class="toolbar-btn btn-danger">
-                批量删除
-              </button>
-            </div>
-            <div id="ordersContainer"></div>
-          </div>
-
-          <div id="applySection" class="page-section">
-            <div class="section-header">
-              <h2>申请管理</h2>
-              <button id="refreshApplyBtn" class="toolbar-btn btn-secondary">
-                ⟳ 刷新
-              </button>
-            </div>
-            <div class="table-filters">
-              <input
-                type="text"
-                id="applySearchInput"
-                placeholder="申请人"
-                autocomplete="off"
-                class="toolbar-input"
-                style="width: 100px"
-              />
-              <select
-                id="applyTypeFilter"
-                class="toolbar-select"
-                style="width: 100px"
-              >
-                <option value="">全部事由</option>
-                <option value="运输">运输</option>
-                <option value="参观">参观</option>
-                <option value="选样">选样</option>
-                <option value="借还">借还</option>
-                <option value="其他">其他</option>
-              </select>
-              <select
-                id="applyStatusFilter"
-                class="toolbar-select"
-                style="width: 100px"
-              >
-                <option value="">全部状态</option>
-                <option value="待审核">待审核</option>
-                <option value="已收录">已收录</option>
-              </select>
-              <input
-                type="date"
-                id="applyDateStart"
-                class="toolbar-date"
-                style="width: 100px"
-              />
-              <input
-                type="date"
-                id="applyDateEnd"
-                class="toolbar-date"
-                style="width: 100px"
-              />
-              <button id="applyQueryBtn" class="toolbar-btn btn-secondary">
-                查询
-              </button>
-              <span style="flex: 1"></span>
-              <button id="createApplyBtn" class="toolbar-btn btn-primary">
-                + 录入
-              </button>
-              <button id="selectAllApply" class="toolbar-btn btn-secondary">
-                全选
-              </button>
-              <button id="batchDeleteApplyBtn" class="toolbar-btn btn-danger">
-                批量删除
-              </button>
-            </div>
-            <div id="applyContainer"></div>
-          </div>
-
-          <!-- ===== 打卡管理 (Clock) ===== -->
-          <div id="clockSection" class="page-section">
-            <div class="section-header">
-              <h2>打卡管理</h2>
-              <button id="refreshClockBtn" class="toolbar-btn btn-secondary">
-                ⟳ 刷新
-              </button>
-            </div>
-            <div class="table-filters">
-              <input
-                type="text"
-                id="clockSearchInput"
-                placeholder="姓名"
-                autocomplete="off"
-                class="toolbar-input"
-                style="width: 100px"
-              />
-              <select
-                id="clockCompanyTypeFilter"
-                class="toolbar-select"
-                style="width: 100px"
-              >
-                <option value="">全部类型</option>
-                <option value="业主方">业主方</option>
-                <option value="运营方">运营方</option>
-                <option value="品牌方">品牌方</option>
-                <option value="其他">其他</option>
-              </select>
-              <input
-                type="date"
-                id="clockDateStart"
-                class="toolbar-date"
-                style="width: 100px"
-              />
-              <input
-                type="date"
-                id="clockDateEnd"
-                class="toolbar-date"
-                style="width: 100px"
-              />
-              <button id="clockQueryBtn" class="toolbar-btn btn-secondary">
-                查询
-              </button>
-              <span style="flex: 1"></span>
-              <button id="createClockBtn" class="toolbar-btn btn-primary">
-                + 录入
-              </button>
-              <button id="selectAllClock" class="toolbar-btn btn-secondary">
-                全选
-              </button>
-              <button id="batchDeleteClockBtn" class="toolbar-btn btn-danger">
-                批量删除
-              </button>
-            </div>
-            <div id="clockContainer"></div>
-          </div>
-
-          <!-- 审批人管理 -->
-          <div id="approvalUsersSection" class="page-section">
-            <div class="section-header">
-              <h2>审批人管理</h2>
-              <button
-                id="refreshApprovalUsersBtn"
-                class="toolbar-btn btn-secondary"
-              >
-                ⟳ 刷新
-              </button>
-            </div>
-            <div style="margin-bottom: 12px">
-              <button id="addApprovalUserBtn" class="toolbar-btn btn-primary">
-                + 添加审批人
-              </button>
-            </div>
-            <div id="approvalUsersContainer"></div>
-          </div>
-
-          <!-- 流程编辑 -->
-          <!-- ===== 流程编辑 (Workflow) ===== -->
-          <div id="workflowSection" class="page-section">
-            <div class="section-header">
-              <h2>流程编辑</h2>
-              <button
-                id="refreshWorkflowsBtn"
-                class="toolbar-btn btn-secondary"
-              >
-                ⟳ 刷新
-              </button>
-            </div>
-            <div id="workflowContainer"></div>
-          </div>
-
-          <!-- 审批记录 -->
-          <div id="approvalRecordsSection" class="page-section">
-            <div class="section-header">
-              <h2>审批记录</h2>
-              <button
-                id="refreshApprovalRecordsBtn"
-                class="toolbar-btn btn-secondary"
-              >
-                ⟳ 刷新
-              </button>
-            </div>
-            <div id="approvalRecordsContainer"></div>
-          </div>
-
-          <!-- 语音助手管理 - 依维五库 -->
-          <!-- ===== 语音助手 (Voice Assistant) ===== -->
-          <div id="voiceAssistantSection" class="page-section">
-            <div class="section-header">
-              <h2>语音助手 · 依维（Evi）</h2>
-            </div>
-            <div
-              class="table-filters"
-              style="gap: 4px; margin-bottom: 16px; flex-wrap: wrap"
-            >
-              <button
-                id="vaTabKnowledge"
-                class="toolbar-btn btn-primary"
-                style="border-radius: 3px"
-              >
-                📚 知识库
-              </button>
-              <button
-                id="vaTabPersonality"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                🪪 人格库(E)
-              </button>
-              <button
-                id="vaTabBehavior"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                🛡️ 行为库(E)
-              </button>
-              <button
-                id="vaTabVerification"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                🔍 核验层(E)
-              </button>
-              <button
-                id="vaTabPrecipRules"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                📐 沉淀规则(E)
-              </button>
-              <button
-                id="vaTabMemory"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                🧠 记忆库
-              </button>
-              <button
-                id="vaTabErrors"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                ❌ 错误库
-              </button>
-              <button
-                id="vaTabEmotion"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                💗 情感趋势
-              </button>
-              <button
-                id="vaTabLogs"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                📋 对话日志
-              </button>
-              <button
-                id="vaTabFunctions"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                ⚙️ 函数技能(E)
-              </button>
-              <button
-                id="vaTabInstincts"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                ⚡ 本能库(E)
-              </button>
-              <span style="flex: 1"></span>
-              <button
-                id="vaDailySummary"
-                class="toolbar-btn btn-secondary"
-                style="border-radius: 3px"
-              >
-                🌅 每日沉淀
-              </button>
-              <button id="vaRefreshBtn" class="toolbar-btn btn-secondary">
-                ⟳ 刷新
-              </button>
-            </div>
-            <div id="vaKnowledgeContainer"></div>
-            <div id="vaPersonalityContainer" style="display: none"></div>
-            <div id="vaBehaviorContainer" style="display: none"></div>
-            <div id="vaVerificationContainer" style="display: none"></div>
-            <div id="vaPrecipRulesContainer" style="display: none"></div>
-            <div id="vaMemoryContainer" style="display: none"></div>
-            <div id="vaErrorsContainer" style="display: none"></div>
-            <div id="vaEmotionContainer" style="display: none"></div>
-            <div id="vaLogsContainer" style="display: none"></div>
-            <div id="vaFunctionsContainer" style="display: none"></div>
-            <div id="vaInstinctsContainer" style="display: none"></div>
-          </div>
         </div>
       </main>
     </div>
@@ -490,7 +153,7 @@
           <button class="modal-close">&times;</button>
         </div>
         <div class="modal-body" id="detailModalBody"></div>
-        <div class="modal-footer">
+        <div class="modal-footer" id="detailModalFooter">
           <button type="button" class="btn btn-secondary modal-close">
             关闭
           </button>
@@ -500,11 +163,15 @@
   </body>
   <script src="src/lib/supabase.min.js"></script>
   <script src="src/lib/qrcode.min.js"></script>
+  <script src="src/lib/pinyin-pro.min.js"></script>
   <script src="src/js/login.js?v=2"></script>
   <script src="src/js/dashboard.js"></script>
   <script src="src/js/sidebar.js"></script>
   <script src="src/js/app/db-writer.js?v=2"></script>
   <script src="src/js/app/upload-manager.js?v=2"></script>
+  <script src="src/js/app/easycod-renderer.js?v=1"></script>
   <script src="src/js/easycod.js?v=3"></script>
-  <script src="src/js/app.js?v=17"></script>
+  <script src="src/js/easyvoice.js"></script>
+  <script src="src/js/easyorder-and-proc.js?v=20260623k"></script>
+  <script src="src/js/app.js?v=21"></script>
 </html>

@@ -2,7 +2,9 @@
   "dependencies": {
     "@phosphor-icons/web": "^2.1.2",
     "@supabase/supabase-js": "^2.108.2",
+    "bugpack-mcp": "^1.0.6",
     "pg": "^8.21.0",
+    "pinyin-pro": "^3.26.0",
     "qrcode-generator": "^2.0.4"
   }
 }

@@ -461,101 +461,245 @@
 }
 
 /* ============================================================
-   Mobile Responsive
+   Mobile Drawer (≤768px)
    ============================================================ */
+
+/* ---- Mobile Top Bar (always visible on mobile) ---- */
+.sidebar-mobile-bar {
+  display: none; /* hidden on desktop */
+}
+
 @media (max-width: 768px) {
-  .sidebar {
-    width: 100%;
-    height: auto;
-    position: sticky;
-    flex-direction: row;
+  .sidebar-mobile-bar {
+    display: flex;
     align-items: center;
-    padding: 0 12px;
-    border-right: none;
-    border-bottom: 2px solid #cbccc9;
+    position: sticky;
     top: 0;
+    z-index: 100;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e5e5;
+    padding: 0 12px;
+    height: 48px;
+    flex-shrink: 0;
+  }
+
+  .sidebar-mobile-toggle {
+    width: 36px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: #18181b;
+    flex-shrink: 0;
+    transition: background 0.15s;
+  }
+  .sidebar-mobile-toggle:hover {
+    background: #f4f4f5;
+  }
+
+  .sidebar-mobile-center {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 16px;
+    font-weight: 600;
+    color: #18181b;
+    margin-left: 6px;
+  }
+
+  .sidebar-mobile-logo {
+    font-size: 20px;
+  }
+
+  /* ---- Sidebar as Drawer ---- */
+  .sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    width: min(34vw, 134px);
+    min-width: 112px;
+    transform: translateX(-100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1000;
     border-radius: 0;
+    margin: 0;
+    border: none;
+    flex-direction: column;
+    padding: 10px 10px 4px;
+    overflow-y: hidden;
+    background: #ffffff;
   }
 
-  .sidebar.collapsed {
-    width: 100%;
+  .sidebar.mobile-open {
+    transform: translateX(0);
   }
 
-  .sidebar-header {
-    flex: none;
+  /* ---- Sidebar Overlay ---- */
+  .sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+  }
+  .sidebar-overlay.active {
+    display: block;
   }
 
-  .sidebar-logo {
-    font-size: 1rem;
-    padding: 12px 0;
-    border-bottom: none;
-    white-space: nowrap;
+  /* ---- Body scroll lock ---- */
+  body.sidebar-open {
+    overflow: hidden;
   }
 
+  /* ---- Hide desktop toggle ---- */
   .sidebar-toggle {
     display: none;
   }
 
-  .sidebar-nav {
-    flex-direction: row;
-    padding: 0;
-    flex: none;
-    align-items: center;
-    gap: 4px;
-    margin-left: auto;
+  /* ---- Override collapsed styles on mobile: always show full content ---- */
+  .sidebar.collapsed {
+    width: min(34vw, 134px);
+    min-width: 112px;
   }
-
-  .sidebar-user {
+  .sidebar.collapsed .sidebar-header {
     display: none;
   }
-
-  .sidebar-link {
-    font-size: 0.8rem;
-    padding: 8px 10px;
-  }
-
-  .sidebar-logout {
-    margin-top: 0;
-  }
-
-  .sidebar-settings {
+  .sidebar.collapsed .sidebar-logo {
     display: none;
   }
-
-  .nav-group-label-collapsed {
+  .sidebar.collapsed .sidebar-user {
+    justify-content: flex-start;
+    width: auto;
+    padding: 0 12px;
+  }
+  .sidebar.collapsed .sidebar-user-name {
+    display: block;
+  }
+  .sidebar.collapsed .sidebar-user-icon {
+    font-size: 24px;
+  }
+  .sidebar.collapsed .nav-group-header {
+    justify-content: flex-start;
+    width: calc(100% - 10px);
+    margin: 0 5px;
+  }
+  .sidebar.collapsed .nav-group-label-expanded {
+    display: block;
+  }
+  .sidebar.collapsed .nav-group-label-collapsed {
     display: none;
   }
-
-  .nav-separator {
-    display: none;
-  }
-
-  .nav-group-header {
-    display: none;
-  }
-
-  .nav-group-body {
-    display: flex;
-    flex-direction: row;
-    gap: 4px;
-    padding: 0;
-  }
-
-  .nav-group.collapsed .nav-group-body {
-    max-height: none;
-    opacity: 1;
-    padding: 0;
-  }
-
-  .sidebar.collapsed .nav-link-text {
-    display: none;
-  }
-
   .sidebar.collapsed .nav-group-body {
-    display: none;
+    display: flex;
+    width: auto;
+    opacity: 1;
+    max-height: none;
+    padding: 4px 0;
+  }
+  .sidebar.collapsed .nav-group.collapsed .nav-group-body {
+    max-height: 0;
+    opacity: 0;
+    padding: 0;
+    display: flex;
+  }
+  .sidebar.collapsed .sidebar-link {
+    justify-content: flex-start;
+    width: auto;
+    height: 35px;
+    margin: 0 10px;
+    padding: 0 10px;
+    border-radius: 999px;
+  }
+  .sidebar.collapsed .sidebar-link .nav-link-text {
+    display: block;
+    flex: 1;
+  }
+  .sidebar.collapsed .sidebar-link i {
+    display: block;
+    font-size: 15px;
+  }
+  .sidebar.collapsed .nav-separator {
+    display: block;
+    width: auto;
+    margin: 0 auto;
+  }
+  .sidebar.collapsed .sidebar-nav-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    width: auto;
+    padding: 0;
+  }
+  .sidebar.collapsed .sidebar-nav-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: auto;
+    padding: 0;
+  }
+  .sidebar.collapsed .sidebar-settings {
+    width: auto !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+  }
+  .sidebar.collapsed .sidebar-logout {
+    width: auto !important;
+  }
+  .sidebar.collapsed .sidebar-top-group {
+    align-items: stretch;
   }
 
-  .sidebar-link i {
+  /* ---- Drawer content sizing (full layout) ---- */
+  .sidebar-top-group {
+    padding-top: 4px;
+  }
+  .sidebar-header {
     display: none;
+  }
+  .sidebar-user {
+    width: auto;
+    padding: 0 12px;
+    height: 44px;
+  }
+  .sidebar-nav {
+    overflow: hidden;
+    min-height: 0;
+  }
+  .sidebar-nav-scroll {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    width: auto;
+  }
+  .nav-group-body {
+    width: auto;
+    padding: 4px 0;
+  }
+  .sidebar-link {
+    width: auto;
+    margin: 0 4px;
+  }
+  .sidebar-nav-bottom {
+    width: auto;
+    padding: 0 8px 12px;
+  }
+  .sidebar-settings {
+    width: auto !important;
+  }
+  .sidebar-logout {
+    width: auto !important;
+  }
+  .nav-separator {
+    display: block;
+    width: auto;
+    margin: 4px 12px;
   }
 }

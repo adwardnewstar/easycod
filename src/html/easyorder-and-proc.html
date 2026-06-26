@@ -1,0 +1,233 @@
+<!-- ===== 订单管理 (Orders) ===== -->
+<div id="ordersSection" class="page-section">
+  <div class="section-header">
+    <h2>订单管理</h2>
+    <button id="refreshOrdersBtn" class="toolbar-btn btn-secondary">
+      ⟳ 刷新
+    </button>
+  </div>
+  <div class="table-filters">
+    <input
+      type="text"
+      id="orderSearchInput"
+      placeholder="订单号"
+      autocomplete="off"
+      class="toolbar-input"
+      style="width: 100px"
+    />
+    <select
+      id="orderStatusFilter"
+      class="toolbar-select"
+      style="width: 100px"
+    >
+      <option value="">全部状态</option>
+      <option value="未提交">未提交</option>
+      <option value="已收录">已收录</option>
+    </select>
+    <input
+      type="date"
+      id="orderDateStart"
+      class="toolbar-date"
+      style="width: 100px"
+    />
+    <input
+      type="date"
+      id="orderDateEnd"
+      class="toolbar-date"
+      style="width: 100px"
+    />
+    <button id="orderQueryBtn" class="toolbar-btn btn-secondary">
+      查询
+    </button>
+    <span style="flex: 1"></span>
+    <button id="createOrderBtn" class="toolbar-btn btn-primary">
+      + 录入
+    </button>
+    <button id="selectAllOrders" class="toolbar-btn btn-secondary">
+      全选
+    </button>
+    <button id="batchDeleteOrdersBtn" class="toolbar-btn btn-danger">
+      批量删除
+    </button>
+  </div>
+  <div id="ordersContainer"></div>
+</div>
+
+<!-- ===== 申请管理 (Apply) ===== -->
+<div id="applySection" class="page-section">
+  <div class="section-header">
+    <h2>申请管理</h2>
+    <button id="refreshApplyBtn" class="toolbar-btn btn-secondary">
+      ⟳ 刷新
+    </button>
+  </div>
+  <div class="table-filters">
+    <input
+      type="text"
+      id="applySearchInput"
+      placeholder="申请人"
+      autocomplete="off"
+      class="toolbar-input"
+      style="width: 100px"
+    />
+    <select
+      id="applyTypeFilter"
+      class="toolbar-select"
+      style="width: 100px"
+    >
+      <option value="">全部事由</option>
+      <option value="运输">运输</option>
+      <option value="参观">参观</option>
+      <option value="选样">选样</option>
+      <option value="借还">借还</option>
+      <option value="其他">其他</option>
+    </select>
+    <select
+      id="applyStatusFilter"
+      class="toolbar-select"
+      style="width: 100px"
+    >
+      <option value="">全部状态</option>
+      <option value="待审核">待审核</option>
+      <option value="已收录">已收录</option>
+    </select>
+    <input
+      type="date"
+      id="applyDateStart"
+      class="toolbar-date"
+      style="width: 100px"
+    />
+    <input
+      type="date"
+      id="applyDateEnd"
+      class="toolbar-date"
+      style="width: 100px"
+    />
+    <button id="applyQueryBtn" class="toolbar-btn btn-secondary">
+      查询
+    </button>
+    <span style="flex: 1"></span>
+    <button id="createApplyBtn" class="toolbar-btn btn-primary">
+      + 录入
+    </button>
+    <button id="selectAllApply" class="toolbar-btn btn-secondary">
+      全选
+    </button>
+    <button id="batchDeleteApplyBtn" class="toolbar-btn btn-danger">
+      批量删除
+    </button>
+  </div>
+  <div id="applyContainer"></div>
+</div>
+
+<!-- ===== 打卡管理 (Clock) ===== -->
+<div id="clockSection" class="page-section">
+  <div class="section-header">
+    <h2>打卡管理</h2>
+    <button id="refreshClockBtn" class="toolbar-btn btn-secondary">
+      ⟳ 刷新
+    </button>
+  </div>
+  <div class="table-filters">
+    <input
+      type="text"
+      id="clockSearchInput"
+      placeholder="姓名"
+      autocomplete="off"
+      class="toolbar-input"
+      style="width: 100px"
+    />
+    <select
+      id="clockCompanyTypeFilter"
+      class="toolbar-select"
+      style="width: 100px"
+    >
+      <option value="">全部类型</option>
+      <option value="业主方">业主方</option>
+      <option value="运营方">运营方</option>
+      <option value="品牌方">品牌方</option>
+      <option value="其他">其他</option>
+    </select>
+    <input
+      type="date"
+      id="clockDateStart"
+      class="toolbar-date"
+      style="width: 100px"
+    />
+    <input
+      type="date"
+      id="clockDateEnd"
+      class="toolbar-date"
+      style="width: 100px"
+    />
+    <button id="clockQueryBtn" class="toolbar-btn btn-secondary">
+      查询
+    </button>
+    <span style="flex: 1"></span>
+    <button id="createClockBtn" class="toolbar-btn btn-primary">
+      + 录入
+    </button>
+    <button id="selectAllClock" class="toolbar-btn btn-secondary">
+      全选
+    </button>
+    <button id="batchDeleteClockBtn" class="toolbar-btn btn-danger">
+      批量删除
+    </button>
+  </div>
+  <div id="clockContainer"></div>
+</div>
+
+<!-- ===== 审批人管理 (Approval Users) ===== -->
+<div id="approvalUsersSection" class="page-section">
+  <div class="section-header">
+    <h2>审批人管理</h2>
+    <button
+      id="refreshApprovalUsersBtn"
+      class="toolbar-btn btn-secondary"
+    >
+      ⟳ 刷新
+    </button>
+  </div>
+  <div style="margin-bottom: 12px">
+    <button id="addApprovalUserBtn" class="toolbar-btn btn-primary">
+      + 添加审批人
+    </button>
+  </div>
+  <div id="approvalUsersContainer"></div>
+</div>
+
+<!-- ===== 流程编辑 (Workflow) ===== -->
+<div id="workflowSection" class="page-section">
+  <div class="section-header">
+    <h2>流程编辑</h2>
+    <button
+      id="refreshWorkflowsBtn"
+      class="toolbar-btn btn-secondary"
+    >
+      ⟳ 刷新
+    </button>
+  </div>
+  <div id="workflowContainer"></div>
+</div>
+
+<!-- ===== 审批记录 (Approval Records) ===== -->
+<div id="approvalRecordsSection" class="page-section">
+  <div class="section-header">
+    <h2>审批记录</h2>
+    <button
+      id="refreshApprovalRecordsBtn"
+      class="toolbar-btn btn-secondary"
+    >
+      ⟳ 刷新
+    </button>
+  </div>
+  <div id="approvalRecordsContainer"></div>
+</div>
+
+<!-- ===== 相关设置 (Settings) ===== -->
+<div id="settingsSection" class="page-section">
+  <div class="section-header">
+    <h2>相关设置</h2>
+  </div>
+  <div id="settingsContainer"></div>
+</div>

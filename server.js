@@ -3,7 +3,7 @@ const fs = require("fs");
 const path = require("path");
 
 const PORT = 3000;
-const EASYVOICE_PORT = 3001;
+const EASYVOICE_PORT = 4090;
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
@@ -20,6 +20,33 @@ const MIME_TYPES = {
 function createStaticServer(rootDir, name) {
   return http.createServer((req, res) => {
     let url = req.url.split("?")[0];
+
+    // 腾讯地图 API 代理（解决浏览器 CORS）
+    if (url.startsWith("/api/maps/")) {
+      var apiPath = req.url.replace("/api/maps/", "");
+      var options = {
+        hostname: "apis.map.qq.com",
+        path: "/" + apiPath,
+        method: "GET",
+        headers: {
+          "User-Agent": "EasyCod",
+          Referer: "http://localhost:3000",
+        },
+      };
+      var proxyReq = http.request(options, function (proxyRes) {
+        res.writeHead(proxyRes.statusCode, {
+          "Content-Type": "application/json; charset=utf-8",
+          "Access-Control-Allow-Origin": "*",
+        });
+        proxyRes.pipe(res);
+      });
+      proxyReq.on("error", function (err) {
+        res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
+        res.end("地图代理失败: " + err.message);
+      });
+      proxyReq.end();
+      return;
+    }
 
     // 代理 API 请求到 EasyVoice 服务器
     if (url.startsWith("/.netlify/functions/")) {

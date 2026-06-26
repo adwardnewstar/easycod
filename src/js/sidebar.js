@@ -4,6 +4,7 @@
  */
 class Sidebar {
   constructor() {
+    this._initialized = false;
     this.viewLinkMap = {
       projects: "navProjects",
       info: "infoBtn",
@@ -14,6 +15,7 @@ class Sidebar {
       workflows: "navWorkflows",
       approvalRecords: "navApprovalRecords",
       voiceAssistant: "navVoiceAssistant",
+      settings: "navSettings",
     };
   }
 
@@ -32,11 +34,14 @@ class Sidebar {
     }
   }
 
-  /** 初始化：绑定事件 + 恢复折叠/分组状态 */
+  /** 初始化：绑定事件 + 恢复折叠/分组状态 + 移动端抽屉 */
   init() {
+    if (this._initialized) return;
+    this._initialized = true;
     this._bindEvents();
     this._restoreCollapsed();
     this._initNavGroups();
+    this._initMobileDrawer();
   }
 
   /** 折叠/展开切换 */
@@ -122,6 +127,7 @@ class Sidebar {
       { id: "navOrders", key: "orders" },
       { id: "navApply", key: "apply" },
       { id: "navClock", key: "clock" },
+      { id: "navSettings", key: "settings" },
       { id: "navApprovalUsers", key: "approvalUsers", adminOnly: true },
       { id: "navWorkflows", key: "workflows" },
       { id: "navApprovalRecords", key: "records" },
@@ -184,5 +190,99 @@ class Sidebar {
     if (toggleBtn) {
       toggleBtn.addEventListener("click", () => this.toggle());
     }
+  }
+
+  // ================================================================
+  //  Mobile Drawer
+  // ================================================================
+
+  /** 初始化移动端抽屉 */
+  _initMobileDrawer() {
+    this._bindMobileToggle();
+    this._bindNavClose();
+    this._bindResizeCleanup();
+  }
+
+  /** 绑定移动端汉堡按钮 */
+  _bindMobileToggle() {
+    const btn = document.getElementById("sidebarMobileToggle");
+    if (btn) {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.toggleMobile();
+      });
+    }
+  }
+
+  /** 导航链接/Logo点击后自动关闭抽屉 */
+  _bindNavClose() {
+    document.addEventListener("click", (e) => {
+      const link = e.target.closest(".sidebar-link, .sidebar-logo");
+      if (!link) return;
+      // 只在移动端关闭抽屉
+      if (window.innerWidth > 768) return;
+      this.closeMobile();
+    });
+  }
+
+  /** 窗口 resize 时从手机切回桌面自动清理 */
+  _bindResizeCleanup() {
+    let timer;
+    window.addEventListener("resize", () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (window.innerWidth > 768) {
+          this._cleanupMobile();
+        }
+      }, 200);
+    });
+  }
+
+  /** 切换移动端抽屉 */
+  toggleMobile() {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+    const isOpen = sidebar.classList.toggle("mobile-open");
+    document.body.classList.toggle("sidebar-open", isOpen);
+    const overlay = this._getOrCreateOverlay();
+    overlay.classList.toggle("active", isOpen);
+    // 更新按钮图标
+    const icon = document.querySelector("#sidebarMobileToggle .ph");
+    if (icon) {
+      icon.className = isOpen ? "ph ph-x" : "ph ph-list";
+    }
+  }
+
+  /** 关闭移动端抽屉 */
+  closeMobile() {
+    const sidebar = document.getElementById("sidebar");
+    if (!sidebar) return;
+    sidebar.classList.remove("mobile-open");
+    document.body.classList.remove("sidebar-open");
+    const overlay = document.querySelector(".sidebar-overlay");
+    if (overlay) overlay.classList.remove("active");
+    const icon = document.querySelector("#sidebarMobileToggle .ph");
+    if (icon) {
+      icon.className = "ph ph-list";
+    }
+  }
+
+  /** 获取或创建遮罩层 */
+  _getOrCreateOverlay() {
+    let overlay = document.querySelector(".sidebar-overlay");
+    if (!overlay) {
+      overlay = document.createElement("div");
+      overlay.className = "sidebar-overlay";
+      document.body.appendChild(overlay);
+      overlay.addEventListener("click", () => this.closeMobile());
+    }
+    return overlay;
+  }
+
+  /** 清理移动端状态（切回桌面时） */
+  _cleanupMobile() {
+    this.closeMobile();
+    const overlay = document.querySelector(".sidebar-overlay");
+    if (overlay) overlay.remove();
   }
 }

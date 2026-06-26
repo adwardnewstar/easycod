@@ -55,6 +55,41 @@ const Easycod = {
         app.renderProjects();
       });
 
+    // 手机端筛选折叠切换
+    var filterToggle = document.getElementById("projectFilterToggle");
+    if (filterToggle) {
+      filterToggle.addEventListener("click", function () {
+        var panel = document.getElementById("projectFilters");
+        if (!panel) return;
+        var isVisible = panel.classList.toggle("filters-visible");
+        this.querySelector("i").className = isVisible
+          ? "ph ph-x"
+          : "ph ph-funnel";
+        this.innerHTML =
+          (isVisible
+            ? '<i class="ph ph-x"></i> '
+            : '<i class="ph ph-funnel"></i> ') + (isVisible ? "收起" : "筛选");
+      });
+    }
+
+    // 样板页更多操作折叠切换
+    var sampleToggle = document.getElementById("sampleFilterToggle");
+    if (sampleToggle) {
+      sampleToggle.addEventListener("click", function () {
+        var panel = document.querySelector("#sampleFilters .btn-group");
+        if (!panel) return;
+        var isVisible = panel.classList.toggle("mobile-open");
+        this.querySelector("i").className = isVisible
+          ? "ph ph-x"
+          : "ph ph-dots-three-outline";
+        this.innerHTML =
+          (isVisible
+            ? '<i class="ph ph-x"></i> '
+            : '<i class="ph ph-dots-three-outline"></i> ') +
+          (isVisible ? "收起" : "更多");
+      });
+    }
+
     // 类别页筛选（select 类型的筛选器）
     ["projectBrandFilter", "projectCategoryFilter"].forEach(function (id) {
       var el = document.getElementById(id);
