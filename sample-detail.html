@@ -198,7 +198,23 @@
           );
         }
 
-        await fetchDailyCodeFromDB(supabaseClient);
+        // 后台加载每日码，不阻塞渲染（getDailyCode 有本地回退）
+        fetchDailyCodeFromDB(supabaseClient);
+
+        // 通过短码 ?c= 解析样板 ID（动态二维码）
+        if (!sid) {
+          var c = params.get("c");
+          if (c && supabaseClient) {
+            try {
+              var { data: scData } = await supabaseClient
+                .from("samples")
+                .select("id")
+                .eq("short_code", c.toUpperCase())
+                .maybeSingle();
+              if (scData) sid = scData.id;
+            } catch (_) {}
+          }
+        }
 
         if (!sid) {
           loadingEl.style.display = "none";
@@ -461,6 +477,6 @@
         }
       });
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+    <script src="src/lib/supabase.min.js"></script>
   </body>
 </html>

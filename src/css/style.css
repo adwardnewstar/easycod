@@ -267,6 +267,7 @@ a:hover {
 #projectQueryBtn,
 #createProjectBtn,
 #selectAllBtn,
+#sortSamplesBtn,
 #batchPrintBtn,
 #batchDeleteBtn,
 #editProjectSampleBtn,
@@ -908,6 +909,9 @@ a:hover {
     padding: 24px;
     border-top-left-radius: 0;
     border-top-right-radius: 0;
+  }
+  #sampleFilterToggle {
+    display: none;
   }
 }
 

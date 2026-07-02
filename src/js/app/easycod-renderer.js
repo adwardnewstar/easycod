@@ -7,6 +7,29 @@
 class EasycodRenderer {
   constructor(app) {
     this.app = app;
+    this._sortState = 0; // 0=编号升序, 1=编号降序, 2=修改日期, 3=录入日期
+    this._sortLabels = ["编号升序", "编号降序", "修改日期", "录入日期"];
+    this._sortIcons = [
+      "ph-list-numbers",
+      "ph-list",
+      "ph-pencil-simple",
+      "ph-plus",
+    ];
+  }
+
+  _nextSortState() {
+    this._sortState = (this._sortState + 1) % 4;
+    this._updateSortBtn();
+  }
+
+  _updateSortBtn() {
+    var btn = document.getElementById("sortSamplesBtn");
+    if (!btn) return;
+    btn.innerHTML =
+      '<i class="ph ' +
+      this._sortIcons[this._sortState] +
+      '"></i> ' +
+      this._sortLabels[this._sortState];
   }
 
   // ============ 类别筛选 ============
@@ -613,7 +636,6 @@ class EasycodRenderer {
 
   // ============ 样板卡片渲染 ============
   _renderOneCard(project, sample) {
-    const initials = sample.name ? sample.name.substring(0, 2) : "??";
     const isProc = project && project.procurement;
     let scopeText, scopeColor, labelBg;
     if (isProc) {
@@ -635,7 +657,7 @@ class EasycodRenderer {
             ${
               sample.imageUrl
                 ? `<img class="sample-image" src="${sample.thumbnailUrl || sample.imageUrl}" alt="${sample.name}" loading="lazy" data-fullsrc="${sample.imageUrl}">${sample._uploadFailed ? `<div class="sample-fail-watermark">FALSE</div>` : ""}${sample.imageUrl && !sample.thumbnailUrl ? `<button class="thumb-regen-btn" data-id="${sample.id}" title="重新生成缩略图"><i class="ph ph-arrow-clockwise"></i></button>` : ""}`
-                : `<div class="sample-image-placeholder">${initials}</div>`
+                : `<div class="sample-image-placeholder">空</div>`
             }
             <button class="btn-label-print" data-id="${sample.id}" title="打印标签" style="background:${labelBg};">标签</button>
             <div class="sample-card-overlay">
@@ -724,6 +746,45 @@ class EasycodRenderer {
         window.app.regenerateThumbnail(regenBtn.dataset.id);
       });
     }
+    // 图片加载失败时显示"空"占位
+    const img = cardEl.querySelector(".sample-image");
+    if (img) {
+      img.addEventListener("error", function () {
+        var wrap = this.parentElement;
+        if (!wrap) return;
+        var ph = document.createElement("div");
+        ph.className = "sample-image-placeholder";
+        ph.textContent = "空";
+        wrap.insertBefore(ph, this);
+        this.remove();
+      });
+    }
+  }
+
+  async _refreshCardImage(cardEl) {
+    var img = cardEl.querySelector(".sample-image");
+    if (!img) return;
+    var sampleId = cardEl.dataset.id;
+    if (!sampleId) return;
+    var samples = Store.getSamples();
+    var sample = samples.find(function (s) {
+      return s.id === sampleId;
+    });
+    if (!sample) return;
+    var url = sample.imageUrl;
+    if (!url || !url.includes("/object/sign/")) return;
+    try {
+      if (typeof refreshSignedUrl !== "undefined") {
+        var fresh = await refreshSignedUrl(url);
+        if (fresh && fresh !== url) {
+          sample.imageUrl = fresh;
+          sample.thumbnailUrl = fresh;
+          Store.saveSamples(samples);
+          img.src = fresh;
+          img.dataset.fullsrc = fresh;
+        }
+      }
+    } catch (_) {}
   }
 
   renderSamples(projectId) {
@@ -734,8 +795,6 @@ class EasycodRenderer {
       return;
     }
 
-    document.getElementById("currentProjectName").textContent = project.name;
-    document.getElementById("selectAllBtn").textContent = "全选";
     var allSamples = Store.getSamples().filter(
       (s) => s.projectId === projectId,
     );
@@ -759,6 +818,44 @@ class EasycodRenderer {
         })
       : allSamples;
 
+    console.log(
+      "[RENDER] renderSamples project=",
+      projectId,
+      "total=",
+      allSamples.length,
+      "filtered=",
+      samples.length,
+      "sort=",
+      this._sortState,
+      "samples:",
+      samples.map((s) => s.name + "(" + (s.code || "") + ")").join(","),
+    );
+    document.getElementById("currentProjectName").textContent = project.name;
+
+    // 排序
+    this._updateSortBtn();
+    var self = this;
+    samples.sort(function (a, b) {
+      switch (self._sortState) {
+        case 0: // 编号升序
+          return (
+            parseInt((a.code || "").split("-")[0] || "0", 10) -
+            parseInt((b.code || "").split("-")[0] || "0", 10)
+          );
+        case 1: // 编号降序
+          return (
+            parseInt((b.code || "").split("-")[0] || "0", 10) -
+            parseInt((a.code || "").split("-")[0] || "0", 10)
+          );
+        case 2: // 修改日期 updatedAt
+          return (b.updatedAt || "").localeCompare(a.updatedAt || "");
+        case 3: // 录入日期 createdAt
+          return (b.createdAt || "").localeCompare(a.createdAt || "");
+        default:
+          return 0;
+      }
+    });
+
     if (samples.length === 0) {
       container.innerHTML = `
         <div class="sample-card sample-placeholder" id="placeholderSampleCard" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;">
@@ -769,7 +866,6 @@ class EasycodRenderer {
       return;
     }
 
-    const self = this;
     container.innerHTML =
       `
         <div class="sample-card sample-placeholder" id="placeholderSampleCard" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;">
@@ -787,6 +883,7 @@ class EasycodRenderer {
       .querySelectorAll(".sample-card[data-id]")
       .forEach(function (card) {
         self._bindOneCard(card);
+        self._refreshCardImage(card);
       });
 
     // 手机端：单击样板卡片→底部弹出菜单
@@ -823,6 +920,8 @@ class EasycodRenderer {
         var s = allSamples[i];
         if (s.projectId !== projectId) continue;
         if (dbIds.has(s.id)) continue;
+        // 跳过正在上传中的新建样板（还未写入 DB，等待 UploadManager 完成）
+        if (s._pendingUpload) continue;
         // 本地有、DB 无：判断是删除同步还是上传失败
         if (s.imageUrl && s.imageUrl.startsWith("http")) {
           // Supabase URL → 曾被同步到 DB，被其他端删了 → 本地移除
@@ -883,14 +982,14 @@ class EasycodRenderer {
   }
 
   // ============ 样板详情 ============
-  showSampleDetail(sampleId) {
+  async showSampleDetail(sampleId) {
     const sample = Store.getSamples().find((s) => s.id === sampleId);
     if (!sample) return;
 
     const project = Store.getProjects().find((p) => p.id === sample.projectId);
 
     const container = document.getElementById("sampleDetailContainer");
-    const qrUrl = qrPageUrl(sample.id);
+    const qrUrl = await qrPageUrl(sample.id);
 
     const procurementLabel = project && project.procurement ? "集采" : "非集采";
     const badgeColor =
@@ -968,14 +1067,14 @@ class EasycodRenderer {
   }
 
   // ============ 标签打印 ============
-  showSingleLabel(sampleId) {
+  async showSingleLabel(sampleId) {
     const samples = Store.getSamples();
     const sample = samples.find((s) => s.id === sampleId);
     if (!sample) return;
 
     const projects = Store.getProjects();
     const project = projects.find((p) => p.id === sample.projectId);
-    const qrUrl = qrPageUrl(sample.id);
+    const qrUrl = await qrPageUrl(sample.id);
 
     const modal = document.getElementById("labelPreviewModal");
     const codeSeq = (sample.code || "").split("-")[0] || "";
@@ -1099,7 +1198,7 @@ class EasycodRenderer {
     overlay.classList.add("active");
   }
 
-  renderLabels() {
+  async renderLabels() {
     const container = document.getElementById("labelsContainer");
     const samples = Store.getSamples();
     const projects = Store.getProjects();
@@ -1207,18 +1306,20 @@ class EasycodRenderer {
       })
       .join("");
 
-    labelsToPrint.forEach((sample) => {
-      const canvas = document.getElementById(`qr-${sample.id}`);
+    for (var _i = 0; _i < labelsToPrint.length; _i++) {
+      var sample = labelsToPrint[_i];
+      const url = await qrPageUrl(sample.id);
+      var canvas = document.getElementById("qr-" + sample.id);
       if (canvas) {
-        drawQRCode(canvas, qrPageUrl(sample.id));
+        drawQRCode(canvas, url);
       }
       if (this.app.selectedLabels.label3) {
-        const extraCanvas = document.getElementById(`extraQr-${sample.id}`);
+        var extraCanvas = document.getElementById("extraQr-" + sample.id);
         if (extraCanvas) {
-          drawQRCode(extraCanvas, qrPageUrl(sample.id));
+          drawQRCode(extraCanvas, url);
         }
       }
-    });
+    }
 
     if (container._dismissHandler) {
       container.removeEventListener("click", container._dismissHandler);
@@ -1257,8 +1358,8 @@ class EasycodRenderer {
     this.batchPrint();
   }
 
-  batchPrint() {
-    this.renderLabels();
+  async batchPrint() {
+    await this.renderLabels();
     this.app.showView("labels");
     setTimeout(() => window.print(), 500);
   }

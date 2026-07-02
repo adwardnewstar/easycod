@@ -200,13 +200,13 @@ class UploadManager {
       try {
         await this.dbWriter.upsertSample(sample, this._userId);
         if (onProgress) onProgress(100, "done");
-        this.onRender();
+        // hasNewImage=false：无图片变更，卡面已由 saveSample 增量追加/编辑时全量渲染
+        // 无需触发 this.onRender() 全量重建 DOM，避免 "+" 占位侵扰
       } catch (e) {
         console.warn("DB sync failed:", e);
         if (onProgress) onProgress(0, "failed");
         sample._uploadFailed = true;
         this.store.saveSamples(freshSamples);
-        this.onRender();
       }
       return;
     }

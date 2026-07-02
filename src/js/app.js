@@ -398,17 +398,64 @@ var BASE_PATH = (function () {
   return i >= 0 ? p.substring(0, i + 1) : "/";
 })();
 
-function qrPageUrl(sampleId) {
-  // 本地开发 → localhost；线上 → GitHub Pages（自动检测，上线无需修改）
-  if (
-    window.location.hostname === "localhost" ||
+// 短码内存缓存
+var _shortCodeCache = {};
+var _SC_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function _genShortCode() {
+  var c = "";
+  for (var i = 0; i < 6; i++)
+    c += _SC_CHARS[Math.floor(Math.random() * _SC_CHARS.length)];
+  return c;
+}
+
+function _qrBase() {
+  return window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1"
-  ) {
-    return window.location.origin + "/sample-detail.html?id=" + sampleId;
-  }
-  return (
-    "https://adwardnewstar.github.io/easycod/sample-detail.html?id=" + sampleId
-  );
+    ? window.location.origin + "/sample-detail.html"
+    : "https://adwardnewstar.github.io/easycod/sample-detail.html";
+}
+
+async function qrPageUrl(sampleId) {
+  // 1) 内存缓存命中
+  if (_shortCodeCache[sampleId])
+    return _qrBase() + "?c=" + _shortCodeCache[sampleId];
+
+  // 2) 查 localStorage 中该样本的 short_code/短码（毫秒级，无需网络）
+  //    若样本存在但无短码，也记入缓存，跳过后续 DB 查询
+  try {
+    var _samples = Store.getSamples();
+    for (var _i = 0; _i < _samples.length; _i++) {
+      if (_samples[_i].id === sampleId) {
+        // fromSnakeCase 会将 short_code 转为 shortCode，两者都检查
+        var _sc = _samples[_i].short_code || _samples[_i].shortCode;
+        if (_sc) {
+          _shortCodeCache[sampleId] = _sc;
+          return _qrBase() + "?c=" + _sc;
+        }
+        // 样本存在但短码为空 → 跳过 DB 查询，直接回退
+        return _qrBase() + "?id=" + sampleId;
+      }
+    }
+  } catch (_) {}
+
+  // 3) 查 DB 是否已有 short_code（兜底，仅查找不生成）
+  try {
+    if (typeof supabaseClient !== "undefined" && supabaseClient) {
+      var { data } = await supabaseClient
+        .from("samples")
+        .select("short_code")
+        .eq("id", sampleId)
+        .maybeSingle();
+      if (data && data.short_code) {
+        _shortCodeCache[sampleId] = data.short_code;
+        return _qrBase() + "?c=" + data.short_code;
+      }
+    }
+  } catch (_) {}
+
+  // 4) 无 short_code → 回退到旧版 ?id= 路径（兼容已打印标签）
+  return _qrBase() + "?id=" + sampleId;
 }
 
 class Store {
@@ -2277,6 +2324,7 @@ class App {
         model,
         brand,
         code,
+        short_code: _genShortCode(), // 新建样板自动生成短码（动态二维码）
         imageUrl: previewImageUrl || "",
         thumbnailUrl: previewImageUrl || "",
         description,
@@ -2308,9 +2356,16 @@ class App {
       this.renderSamples(this.currentProjectId);
     } else {
       // 新建：增量追加，不动已有 DOM
+      console.log(
+        "[SAVE] 新建样板:",
+        targetSample.name,
+        targetSample.code,
+        "id=",
+        targetId,
+      );
       const container = document.getElementById("samplesContainer");
-      const placeholder = document.getElementById("placeholderSampleCard");
-      if (placeholder) placeholder.remove();
+      const oldPlaceholder = document.getElementById("placeholderSampleCard");
+      if (oldPlaceholder) oldPlaceholder.remove();
       const project = Store.getProjects().find(function (p) {
         return p.id === this.currentProjectId;
       }, this);
@@ -2320,7 +2375,15 @@ class App {
         '.sample-card[data-id="' + targetId + '"]',
       );
       if (newCard) this._bindOneCard(newCard);
-      this._markLocalOnlySamples(this.currentProjectId);
+      // 重新插入 "+" 占位卡到最前面
+      container.insertAdjacentHTML(
+        "afterbegin",
+        '<div class="sample-card sample-placeholder" id="placeholderSampleCard" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;">' +
+          '<span style="font-size:2rem;line-height:1;color:var(--primary)">+</span>' +
+          '<span style="font-size:0.8rem;color:var(--text-light)">录入样板</span>' +
+          "</div>",
+      );
+      // 新建样板暂不检查同步状态——UploadManager 上传完成后再 sync 即可
     }
 
     // ── 阶段二：加入上传队列（UploadManager 管理）──

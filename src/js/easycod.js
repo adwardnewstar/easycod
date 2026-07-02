@@ -304,6 +304,12 @@ const Easycod = {
       app.selectAllSamples();
     });
 
+    // 排序切换
+    document.getElementById("sortSamplesBtn").addEventListener("click", () => {
+      app.easycodRenderer._nextSortState();
+      if (app.currentProjectId) app.renderSamples(app.currentProjectId);
+    });
+
     // 返回类别
     document.getElementById("backToProjects").addEventListener("click", () => {
       app.renderProjects();
