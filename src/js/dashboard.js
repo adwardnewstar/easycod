@@ -769,7 +769,12 @@
         html += '<span class="bar-value">' + g.procurement + "</span>";
       html += "</div>";
       html += "</div>";
-      html += '<div class="bar-group-label">' + escHtml(p.name) + "</div>";
+      html +=
+        '<div class="bar-group-label" title="' +
+        escHtml(p.name) +
+        '">' +
+        escHtml(p.name) +
+        "</div>";
       html += "</div>";
     });
     html += "</div>"; // end chart-bars

@@ -132,8 +132,9 @@ const EasyorderAndproc = {
     function _handleSettingsClick(e) {
       var btn = e.target.closest("#refreshSettingsBtn");
       if (btn) {
-        EasyorderAndproc._settingsCache = null;
-        EasyorderAndproc.renderSettings();
+        Store.loadSettingsFromDB().then(function () {
+          EasyorderAndproc.renderSettings();
+        });
       }
       var saveBtn = e.target.closest("#saveSettingsBtn");
       if (saveBtn) {
@@ -2474,24 +2475,8 @@ const EasyorderAndproc = {
       return;
     }
 
-    // 使用缓存：第一次加载后不再重复请求数据库
-    if (!EasyorderAndproc._settingsCache) {
-      try {
-        var { data, error } = await supabaseClient
-          .from("settings")
-          .select("*")
-          .eq("key", "clockLocation")
-          .single();
-        if (error) throw error;
-        EasyorderAndproc._settingsCache = data;
-      } catch (e) {
-        container.innerHTML =
-          '<div class="empty-state"><p>加载失败: ' + e.message + "</p></div>";
-        return;
-      }
-    }
-
-    var data = EasyorderAndproc._settingsCache;
+    // 从 Store 读取（数据已在 app 初始化时后台预加载）
+    var data = Store.getSettings();
     var loc = data?.value || {};
     EasyorderAndproc._settingsData = data;
 
@@ -2556,14 +2541,23 @@ const EasyorderAndproc = {
       "  </div>" +
       "</div>";
 
-    // 地图 API 只加载一次
+    // 地图异步加载 — 不阻塞 UI
     if (!EasyorderAndproc._mapApiLoaded) {
-      await EasyorderAndproc._loadMapAPI();
-      EasyorderAndproc._mapApiLoaded = true;
+      var mapEl = document.getElementById("mapContainer");
+      if (mapEl)
+        mapEl.innerHTML =
+          '<div style="height:380px;display:flex;align-items:center;justify-content:center;color:var(--text-light);font-size:0.85rem;">地图加载中…</div>';
+      EasyorderAndproc._loadMapAPI().then(function () {
+        EasyorderAndproc._mapApiLoaded = true;
+        setTimeout(function () {
+          EasyorderAndproc._initSettingsMap(loc);
+        }, 100);
+      });
+    } else {
+      setTimeout(function () {
+        EasyorderAndproc._initSettingsMap(loc);
+      }, 100);
     }
-    setTimeout(function () {
-      EasyorderAndproc._initSettingsMap(loc);
-    }, 100);
   },
 
   async saveSettings() {
@@ -2599,8 +2593,12 @@ const EasyorderAndproc = {
         })
         .eq("id", id);
       if (error) throw error;
-      // 保存后清除缓存，确保下次 render 拉取最新数据
-      EasyorderAndproc._settingsCache = null;
+      // 更新 Store 缓存，确保下次 render 读到最新数据
+      var savedData = EasyorderAndproc._settingsData || {};
+      savedData.value = value;
+      savedData.updated_by = updatedBy;
+      savedData.updated_at = new Date().toISOString();
+      Store.saveSettings(savedData);
       app.showToast("设置已保存", "success");
       EasyorderAndproc.renderSettings();
     } catch (e) {

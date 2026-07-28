@@ -49,6 +49,7 @@ const STORAGE_KEYS = {
   workflowAssignees: "easycod_wf_node_assignees",
   approvalRecords: "easycod_approval_records",
   approvalLogs: "easycod_approval_logs",
+  settings: "easycod_settings",
 };
 
 const DEFAULT_FIELD_VISIBILITY = {
@@ -767,6 +768,28 @@ class Store {
     );
   }
 
+  // ===== 相关设置缓存 =====
+  static getSettings() {
+    return Store.get(STORAGE_KEYS.settings) || null;
+  }
+  static saveSettings(data) {
+    Store.set(STORAGE_KEYS.settings, data);
+  }
+  static async loadSettingsFromDB() {
+    if (!supabaseClient) return;
+    try {
+      const { data, error } = await supabaseClient
+        .from("settings")
+        .select("*")
+        .eq("key", "clockLocation")
+        .single();
+      if (error) throw error;
+      Store.saveSettings(data);
+    } catch (e) {
+      console.warn("Settings load failed:", e.message);
+    }
+  }
+
   // ===== 审批人缓存 =====
   static getApprovalUsers() {
     return Store.get(STORAGE_KEYS.approvalUsers) || [];
@@ -1315,6 +1338,7 @@ class App {
                 Store.loadApplyFromDB(),
                 Store.loadClockFromDB(),
                 Store.loadAllApprovalData(),
+                Store.loadSettingsFromDB(),
               ]).catch(function (e2) {
                 console.warn("silent load failed:", e2);
               });
