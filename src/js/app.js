@@ -1340,13 +1340,25 @@ class App {
                 Store.loadAllApprovalData(),
                 Store.loadSettingsFromDB(),
               ]).catch(function (e2) {
-                console.warn("silent load failed:", e2);
+                console.warn("[Preload] silent load failed:", e2);
+                console.warn(
+                  "[Preload] error name:",
+                  e2 && e2.name,
+                  "message:",
+                  e2 && e2.message,
+                );
               });
             };
           })(this),
         )
         .catch(function (e) {
-          console.warn("DB load failed:", e);
+          console.warn("[Preload-Main] DB load failed:", e);
+          console.warn(
+            "[Preload-Main] error name:",
+            e && e.name,
+            "message:",
+            e && e.message,
+          );
           window.app && window.app.showToast
             ? window.app.showToast("数据加载失败，请检查网络后刷新", "error")
             : void 0;
