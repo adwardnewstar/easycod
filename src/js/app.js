@@ -1226,7 +1226,13 @@ class App {
     const session = Store.getSession();
     if (session && supabaseClient) {
       // 恢复 Supabase auth session，避免手机端 token 丢失导致 RLS 42501
-      await this._restoreSupabaseSession(session);
+      const restored = await this._restoreSupabaseSession(session);
+      if (!restored) {
+        // session 已过期（如 refresh token 失效），引导重新登录
+        Store.clearSession();
+        this.showLogin();
+        return;
+      }
       this.user = session;
       this.uploadManager.setUserId(session?.id);
       // 并行：权限查询(DB网络) + UI渲染，不互相等待
@@ -1240,7 +1246,12 @@ class App {
         return setTimeout(resolve, 3000);
       });
       if (supabaseClient) {
-        this._restoreSupabaseSession(session);
+        const restored = await this._restoreSupabaseSession(session);
+        if (!restored) {
+          Store.clearSession();
+          this.showLogin();
+          return;
+        }
         this.user = session;
         this.uploadManager.setUserId(session?.id);
         await this._refreshUserPermissions();
@@ -1255,14 +1266,18 @@ class App {
   }
 
   async _restoreSupabaseSession(session) {
-    if (!session._supabaseSession || !supabaseClient) return;
+    if (!session._supabaseSession || !supabaseClient) return false;
     try {
       await supabaseClient.auth.setSession({
         access_token: session._supabaseSession.access_token,
         refresh_token: session._supabaseSession.refresh_token,
       });
+      // 验证 session 是否真正恢复（refresh token 过期时 setSession 可能不抛异常但 session 为空）
+      const { data } = await supabaseClient.auth.getSession();
+      return !!data?.session;
     } catch (e) {
       console.warn("_restoreSupabaseSession failed:", e);
+      return false;
     }
   }
 
