@@ -858,12 +858,21 @@ class Store {
   }
 
   static async loadAllWorkflowData() {
-    if (!supabaseClient) return;
-    await Promise.all([
-      Store.loadWfTemplatesFromDB(),
-      Store.loadWfNodesFromDB(),
-      Store.loadWfAssigneesFromDB(),
-    ]);
+    if (!supabaseClient) {
+      console.log("[loadAllWorkflowData] skip: no supabaseClient");
+      return;
+    }
+    console.log("[loadAllWorkflowData] start...");
+    try {
+      await Promise.all([
+        Store.loadWfTemplatesFromDB(),
+        Store.loadWfNodesFromDB(),
+        Store.loadWfAssigneesFromDB(),
+      ]);
+      console.log("[loadAllWorkflowData] OK");
+    } catch (e) {
+      console.error("[loadAllWorkflowData] FAILED:", e.name, e.message);
+    }
   }
 
   // ===== 审批记录缓存 =====
@@ -900,13 +909,22 @@ class Store {
   }
 
   static async loadAllApprovalData() {
-    if (!supabaseClient) return;
-    await Promise.all([
-      Store.loadApprovalUsersFromDB(),
-      Store.loadAllWorkflowData(),
-      Store.loadApprovalRecordsFromDB(),
-      Store.loadApprovalLogsFromDB(),
-    ]);
+    if (!supabaseClient) {
+      console.log("[loadAllApprovalData] skip: no supabaseClient");
+      return;
+    }
+    console.log("[loadAllApprovalData] start loading...");
+    try {
+      await Promise.all([
+        Store.loadApprovalUsersFromDB(),
+        Store.loadAllWorkflowData(),
+        Store.loadApprovalRecordsFromDB(),
+        Store.loadApprovalLogsFromDB(),
+      ]);
+      console.log("[loadAllApprovalData] all loaded OK");
+    } catch (e) {
+      console.error("[loadAllApprovalData] FAILED:", e.name, e.message);
+    }
   }
 
   static async loadProjectsFromDB() {
@@ -1326,6 +1344,7 @@ class App {
       this.seedDemoData();
       this.dashboard.render();
     } else if (!DEMO_MODE && supabaseClient && this.user?.id) {
+      console.log("[Preload] start: projects+samples");
       Store.loadFieldVisibilityFromDB();
       Promise.all([Store.loadProjectsFromDB(), Store.loadSamplesFromDB()])
         .then(
