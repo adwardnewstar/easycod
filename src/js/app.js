@@ -858,18 +858,13 @@ class Store {
   }
 
   static async loadAllWorkflowData() {
-    if (!supabaseClient) {
-      console.log("[loadAllWorkflowData] skip: no supabaseClient");
-      return;
-    }
-    console.log("[loadAllWorkflowData] start...");
+    if (!supabaseClient) return;
     try {
       await Promise.all([
         Store.loadWfTemplatesFromDB(),
         Store.loadWfNodesFromDB(),
         Store.loadWfAssigneesFromDB(),
       ]);
-      console.log("[loadAllWorkflowData] OK");
     } catch (e) {
       console.error("[loadAllWorkflowData] FAILED:", e.name, e.message);
     }
@@ -909,11 +904,7 @@ class Store {
   }
 
   static async loadAllApprovalData() {
-    if (!supabaseClient) {
-      console.log("[loadAllApprovalData] skip: no supabaseClient");
-      return;
-    }
-    console.log("[loadAllApprovalData] start loading...");
+    if (!supabaseClient) return;
     try {
       await Promise.all([
         Store.loadApprovalUsersFromDB(),
@@ -921,7 +912,6 @@ class Store {
         Store.loadApprovalRecordsFromDB(),
         Store.loadApprovalLogsFromDB(),
       ]);
-      console.log("[loadAllApprovalData] all loaded OK");
     } catch (e) {
       console.error("[loadAllApprovalData] FAILED:", e.name, e.message);
     }
@@ -1344,7 +1334,6 @@ class App {
       this.seedDemoData();
       this.dashboard.render();
     } else if (!DEMO_MODE && supabaseClient && this.user?.id) {
-      console.log("[Preload] start: projects+samples");
       Store.loadFieldVisibilityFromDB();
       Promise.all([Store.loadProjectsFromDB(), Store.loadSamplesFromDB()])
         .then(
@@ -1358,26 +1347,11 @@ class App {
                 Store.loadClockFromDB(),
                 Store.loadAllApprovalData(),
                 Store.loadSettingsFromDB(),
-              ]).catch(function (e2) {
-                console.warn("[Preload] silent load failed:", e2);
-                console.warn(
-                  "[Preload] error name:",
-                  e2 && e2.name,
-                  "message:",
-                  e2 && e2.message,
-                );
-              });
+              ]).catch(function () {});
             };
           })(this),
         )
-        .catch(function (e) {
-          console.warn("[Preload-Main] DB load failed:", e);
-          console.warn(
-            "[Preload-Main] error name:",
-            e && e.name,
-            "message:",
-            e && e.message,
-          );
+        .catch(function () {
           window.app && window.app.showToast
             ? window.app.showToast("数据加载失败，请检查网络后刷新", "error")
             : void 0;

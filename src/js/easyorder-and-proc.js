@@ -1510,16 +1510,6 @@ const EasyorderAndproc = {
       let users = Store.getApprovalUsers().filter((u) => u.is_active);
       let allNodes = Store.getWfNodes();
       let allAssignees = Store.getWfAssignees();
-      console.log(
-        "[Workflows] tpls:",
-        tpls ? tpls.length : 0,
-        "users:",
-        users ? users.length : 0,
-        "nodes:",
-        allNodes ? allNodes.length : 0,
-        "assignees:",
-        allAssignees ? allAssignees.length : 0,
-      );
       EasyorderAndproc._wfTemplates = tpls;
       EasyorderAndproc._wfUsers = users;
 
