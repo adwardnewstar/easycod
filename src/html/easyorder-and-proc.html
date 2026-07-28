@@ -14,12 +14,10 @@
       autocomplete="off"
       class="toolbar-input"
       style="width: 100px"
+      readonly
+      onfocus="this.removeAttribute('readonly')"
     />
-    <select
-      id="orderStatusFilter"
-      class="toolbar-select"
-      style="width: 100px"
-    >
+    <select id="orderStatusFilter" class="toolbar-select" style="width: 100px">
       <option value="">全部状态</option>
       <option value="未提交">未提交</option>
       <option value="已收录">已收录</option>
@@ -36,16 +34,10 @@
       class="toolbar-date"
       style="width: 100px"
     />
-    <button id="orderQueryBtn" class="toolbar-btn btn-secondary">
-      查询
-    </button>
+    <button id="orderQueryBtn" class="toolbar-btn btn-secondary">查询</button>
     <span style="flex: 1"></span>
-    <button id="createOrderBtn" class="toolbar-btn btn-primary">
-      + 录入
-    </button>
-    <button id="selectAllOrders" class="toolbar-btn btn-secondary">
-      全选
-    </button>
+    <button id="createOrderBtn" class="toolbar-btn btn-primary">+ 录入</button>
+    <button id="selectAllOrders" class="toolbar-btn btn-secondary">全选</button>
     <button id="batchDeleteOrdersBtn" class="toolbar-btn btn-danger">
       批量删除
     </button>
@@ -69,12 +61,10 @@
       autocomplete="off"
       class="toolbar-input"
       style="width: 100px"
+      readonly
+      onfocus="this.removeAttribute('readonly')"
     />
-    <select
-      id="applyTypeFilter"
-      class="toolbar-select"
-      style="width: 100px"
-    >
+    <select id="applyTypeFilter" class="toolbar-select" style="width: 100px">
       <option value="">全部事由</option>
       <option value="运输">运输</option>
       <option value="参观">参观</option>
@@ -82,11 +72,7 @@
       <option value="借还">借还</option>
       <option value="其他">其他</option>
     </select>
-    <select
-      id="applyStatusFilter"
-      class="toolbar-select"
-      style="width: 100px"
-    >
+    <select id="applyStatusFilter" class="toolbar-select" style="width: 100px">
       <option value="">全部状态</option>
       <option value="待审核">待审核</option>
       <option value="已收录">已收录</option>
@@ -103,16 +89,10 @@
       class="toolbar-date"
       style="width: 100px"
     />
-    <button id="applyQueryBtn" class="toolbar-btn btn-secondary">
-      查询
-    </button>
+    <button id="applyQueryBtn" class="toolbar-btn btn-secondary">查询</button>
     <span style="flex: 1"></span>
-    <button id="createApplyBtn" class="toolbar-btn btn-primary">
-      + 录入
-    </button>
-    <button id="selectAllApply" class="toolbar-btn btn-secondary">
-      全选
-    </button>
+    <button id="createApplyBtn" class="toolbar-btn btn-primary">+ 录入</button>
+    <button id="selectAllApply" class="toolbar-btn btn-secondary">全选</button>
     <button id="batchDeleteApplyBtn" class="toolbar-btn btn-danger">
       批量删除
     </button>
@@ -133,9 +113,11 @@
       type="text"
       id="clockSearchInput"
       placeholder="姓名"
-      autocomplete="new-password"
+      autocomplete="off"
       class="toolbar-input"
       style="width: 100px"
+      readonly
+      onfocus="this.removeAttribute('readonly')"
     />
     <select
       id="clockCompanyTypeFilter"
@@ -160,16 +142,10 @@
       class="toolbar-date"
       style="width: 100px"
     />
-    <button id="clockQueryBtn" class="toolbar-btn btn-secondary">
-      查询
-    </button>
+    <button id="clockQueryBtn" class="toolbar-btn btn-secondary">查询</button>
     <span style="flex: 1"></span>
-    <button id="createClockBtn" class="toolbar-btn btn-primary">
-      + 录入
-    </button>
-    <button id="selectAllClock" class="toolbar-btn btn-secondary">
-      全选
-    </button>
+    <button id="createClockBtn" class="toolbar-btn btn-primary">+ 录入</button>
+    <button id="selectAllClock" class="toolbar-btn btn-secondary">全选</button>
     <button id="batchDeleteClockBtn" class="toolbar-btn btn-danger">
       批量删除
     </button>
@@ -181,10 +157,7 @@
 <div id="approvalUsersSection" class="page-section">
   <div class="section-header">
     <h2>审批人管理</h2>
-    <button
-      id="refreshApprovalUsersBtn"
-      class="toolbar-btn btn-secondary"
-    >
+    <button id="refreshApprovalUsersBtn" class="toolbar-btn btn-secondary">
       ⟳ 刷新
     </button>
   </div>
@@ -200,10 +173,7 @@
 <div id="workflowSection" class="page-section">
   <div class="section-header">
     <h2>流程编辑</h2>
-    <button
-      id="refreshWorkflowsBtn"
-      class="toolbar-btn btn-secondary"
-    >
+    <button id="refreshWorkflowsBtn" class="toolbar-btn btn-secondary">
       ⟳ 刷新
     </button>
   </div>
@@ -214,10 +184,7 @@
 <div id="approvalRecordsSection" class="page-section">
   <div class="section-header">
     <h2>审批记录</h2>
-    <button
-      id="refreshApprovalRecordsBtn"
-      class="toolbar-btn btn-secondary"
-    >
+    <button id="refreshApprovalRecordsBtn" class="toolbar-btn btn-secondary">
       ⟳ 刷新
     </button>
   </div>
