@@ -578,6 +578,19 @@ class Store {
     localStorage.removeItem(STORAGE_KEYS.session);
   }
 
+  /** 异步从 DB 获取今天的全局统一 code，缓存到 localStorage */
+  static async initDailyCode() {
+    const local = Store.get(STORAGE_KEYS.dailyCode);
+    if (local && local.date === today()) return local.code;
+    const dbCode = await Store.fetchDailyCodeFromDB();
+    if (dbCode) {
+      Store.set(STORAGE_KEYS.dailyCode, { code: dbCode, date: today() });
+      return dbCode;
+    }
+    return null;
+  }
+
+  /** 同步读取（dashboard 等同步渲染使用）— 优先读 localStorage，无缓存时本地生成 */
   static getDailyCode() {
     const data = Store.get(STORAGE_KEYS.dailyCode);
     if (data && data.date === today()) {
@@ -1339,6 +1352,9 @@ class App {
     this.sidebar.updateHeader(this.user);
     this.sidebar.updateVisibility(this.user);
     this.sidebar.init();
+
+    // 预先从 DB 获取今天的全局统一邀请码（跨设备保持一致）
+    await Store.initDailyCode();
 
     // 立即渲染仪表盘骨架（数据可能为空，但布局先出来）
     this.dashboard.render();
