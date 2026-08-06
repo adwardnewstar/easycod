@@ -384,7 +384,10 @@ const EasyorderAndproc = {
             .from("apply_records")
             .insert(DbWriter.toSnakeCase(data))
             .then(function (r) {
-              if (r.error) console.warn("sync apply failed:", r.error);
+              if (r.error) {
+                console.warn("sync apply failed:", r.error);
+                window.app.showToast("数据库同步失败，请检查网络", "error");
+              }
             });
         }
         EasyorderAndproc.renderApply();
@@ -434,7 +437,10 @@ const EasyorderAndproc = {
             .from("clock_records")
             .insert(DbWriter.toSnakeCase(data))
             .then(function (r) {
-              if (r.error) console.warn("sync clock failed:", r.error);
+              if (r.error) {
+                console.warn("sync clock failed:", r.error);
+                window.app.showToast("数据库同步失败，请检查网络", "error");
+              }
             });
         }
         EasyorderAndproc.renderClock();
