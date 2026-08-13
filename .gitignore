@@ -10,6 +10,9 @@ node_modules/
 .env
 .env.local
 
+# 部署缓存
+.netlify/
+
 # 日志
 *.log
 

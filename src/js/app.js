@@ -2716,6 +2716,9 @@ class App {
         records = records.filter((r) => r.id !== target.id);
         Store.saveClockRecords(records);
         EasyorderAndproc.renderClock();
+      } else if (target.type === "wfnode") {
+        // 流程节点删除：删节点 + 清理审批人分配 + 重排序号（在流程模块内完成）
+        await EasyorderAndproc.deleteWorkflowNode(target.id);
       } else if (target.type === "sample") {
         await this._execDelete("samples", target.id);
         // 删除关联的存储图片

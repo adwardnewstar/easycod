@@ -1557,67 +1557,67 @@ const EasyorderAndproc = {
       container.innerHTML = html;
 
       // === 事件绑定（委托到 container） ===
-      container.addEventListener("click", (e) => {
-        // + 按钮
-        const plusBtn = e.target.closest(".wf-plus-btn");
-        if (plusBtn) {
-          EasyorderAndproc._showWFAddNode(
-            plusBtn.dataset.tpl,
-            parseInt(plusBtn.dataset.pos),
-          );
-          return;
-        }
-        // 删除节点（必须放在 .wf-node 之前处理）
-        const delBtn = e.target.closest(".wf-del-node-btn");
-        if (delBtn) {
-          e.stopPropagation();
-          const nodeId = delBtn.dataset.nodeId;
-          const node = allNodes.find((n) => n.id === nodeId);
-          if (!node) return;
-          if (node.is_preset) {
-            window.app.showToast("预设节点不可删除", "error");
+      // 仅在首次渲染时绑定，防止重复渲染导致监听器叠加、点击 + 一次创建多个弹框
+      if (!container._wfClickBound) {
+        container._wfClickBound = true;
+        container.addEventListener("click", (e) => {
+          // 每次从 Store 实时读取最新节点，避免闭包捕获首次渲染的旧数据
+          // （否则新增节点在旧数组里找不到，点击删除会无反应）
+          const allNodes = Store.getWfNodes();
+          // + 按钮
+          const plusBtn = e.target.closest(".wf-plus-btn");
+          if (plusBtn) {
+            EasyorderAndproc._showWFAddNode(
+              plusBtn.dataset.tpl,
+              parseInt(plusBtn.dataset.pos),
+            );
             return;
           }
-          const tpl = EasyorderAndproc._wfTemplates.find(
-            (t) => t.id === node.template_id,
-          );
-          if (!tpl) return;
-          const min = typeMap[tpl.apply_type] || 2;
-          const tplNodes = allNodes.filter(
-            (n) => n.template_id === node.template_id,
-          );
-          if (tplNodes.length <= min) {
-            window.app.showToast("该类型至少需要 " + min + " 个节点", "error");
+          // 删除节点（必须放在 .wf-node 之前处理）
+          const delBtn = e.target.closest(".wf-del-node-btn");
+          if (delBtn) {
+            e.stopPropagation();
+            const nodeId = delBtn.dataset.nodeId;
+            const node = allNodes.find((n) => n.id === nodeId);
+            if (!node) return;
+            if (node.is_preset) {
+              window.app.showToast("预设节点不可删除", "error");
+              return;
+            }
+            const tpl = EasyorderAndproc._wfTemplates.find(
+              (t) => t.id === node.template_id,
+            );
+            if (!tpl) return;
+            const min = typeMap[tpl.apply_type] || 2;
+            const tplNodes = allNodes.filter(
+              (n) => n.template_id === node.template_id,
+            );
+            if (tplNodes.length <= min) {
+              window.app.showToast(
+                "该类型至少需要 " + min + " 个节点",
+                "error",
+              );
+              return;
+            }
+            // 与申请汇总一致：弹出带密码验证的确认弹框，替代原生 confirm
+            // （原生 confirm 在部分环境会被挂起，导致"点击无反应"）
+            window.app.promptDelete("wfnode", nodeId, "流程节点 " + node.name);
             return;
           }
-          if (!confirm("确定删除该节点？")) return;
-          supabaseClient
-            .from("ep_workflow_nodes")
-            .delete()
-            .eq("id", nodeId)
-            .then(async ({ error }) => {
-              if (error) {
-                window.app.showToast("删除失败", "error");
-                return;
-              }
-              await Store.loadAllWorkflowData();
-              EasyorderAndproc.renderWorkflows();
-            });
-          return;
-        }
-        // 编辑节点
-        const editBtn = e.target.closest(".wf-edit-node-btn");
-        if (editBtn) {
-          EasyorderAndproc._showWFEditNode(editBtn.dataset.nodeId);
-          return;
-        }
-        // 节点卡片
-        const nodeEl = e.target.closest(".wf-node");
-        if (nodeEl) {
-          EasyorderAndproc._showWFAssignModal(nodeEl.dataset.nodeId);
-          return;
-        }
-      });
+          // 编辑节点
+          const editBtn = e.target.closest(".wf-edit-node-btn");
+          if (editBtn) {
+            EasyorderAndproc._showWFEditNode(editBtn.dataset.nodeId);
+            return;
+          }
+          // 节点卡片
+          const nodeEl = e.target.closest(".wf-node");
+          if (nodeEl) {
+            EasyorderAndproc._showWFAssignModal(nodeEl.dataset.nodeId);
+            return;
+          }
+        });
+      }
     } catch (e) {
       container.innerHTML =
         '<div class="empty-state"><p>加载失败: ' + e.message + "</p></div>";
@@ -1689,6 +1689,10 @@ const EasyorderAndproc = {
   },
 
   async _showWFAddNode(templateId, pos) {
+    // 清理已存在的添加节点弹框，防止叠加（监听器叠加/双击等导致残留时兜底）
+    document.querySelectorAll(".modal-overlay").forEach((el) => {
+      if (el.querySelector("#wfAddNodeSave")) el.remove();
+    });
     const overlay = document.createElement("div");
     overlay.className = "modal-overlay active";
     overlay.innerHTML = `<div class="modal" style="max-width:400px">
@@ -1705,14 +1709,16 @@ const EasyorderAndproc = {
       </div>
     </div>`;
     document.body.appendChild(overlay);
-    overlay
-      .querySelector(".modal-close")
-      .addEventListener("click", () => overlay.remove());
-    overlay
-      .querySelector(".modal-close-btn")
-      .addEventListener("click", () => overlay.remove());
+    overlay.querySelector(".modal-close").addEventListener("click", () => {
+      overlay.remove();
+    });
+    overlay.querySelector(".modal-close-btn").addEventListener("click", () => {
+      overlay.remove();
+    });
     overlay.addEventListener("click", (e) => {
-      if (e.target === overlay) overlay.remove();
+      if (e.target === overlay) {
+        overlay.remove();
+      }
     });
     document
       .getElementById("wfAddNodeSave")
@@ -1722,36 +1728,195 @@ const EasyorderAndproc = {
           window.app.showToast("请输入节点名称", "error");
           return;
         }
-        // 读取当前模板的所有节点
-        const { data: nodes } = await supabaseClient
-          .from("ep_workflow_nodes")
-          .select("id,order_index")
-          .eq("template_id", templateId)
-          .order("order_index");
-        const curNodes = nodes || [];
-        // 插入新节点
-        const { error } = await supabaseClient
-          .from("ep_workflow_nodes")
-          .insert({
-            template_id: templateId,
-            name: name,
-            order_index: pos + 1,
-          });
-        if (error) {
-          window.app.showToast("添加失败: " + error.message, "error");
-          return;
-        }
-        // 后续节点的 order_index 后移
-        for (let i = pos; i < curNodes.length; i++) {
-          await supabaseClient
+        const submitBtn = document.getElementById("wfAddNodeSave");
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        // 三点循环动画
+        let dots = 0;
+        let dotDir = 1;
+        const dotTimer = setInterval(() => {
+          dots += dotDir;
+          if (dots >= 3) dotDir = -1;
+          if (dots <= 0) dotDir = 1;
+          submitBtn.textContent = "保存中" + ".".repeat(dots);
+        }, 400);
+        try {
+          // 读取当前模板的所有节点
+          const { data: nodes, error: readErr } = await supabaseClient
             .from("ep_workflow_nodes")
-            .update({ order_index: i + 2 })
-            .eq("id", curNodes[i].id);
+            .select("id,order_index")
+            .eq("template_id", templateId)
+            .order("order_index");
+          if (readErr) {
+            window.app.showToast("添加失败: " + readErr.message, "error");
+            return;
+          }
+          const curNodes = nodes || [];
+          // 插入新节点
+          const { data: inserted, error } = await supabaseClient
+            .from("ep_workflow_nodes")
+            .insert({
+              template_id: templateId,
+              name: name,
+              order_index: pos + 1,
+            })
+            .select("id")
+            .single();
+          if (error) {
+            window.app.showToast("添加失败: " + error.message, "error");
+            return;
+          }
+          // 整条链重新编号：新节点插入到 pos 位置（0-based），
+          // 其余节点按原顺序从 1 开始重排，保证 order_index 连续不重复
+          // （顺带修正历史遗留的乱序数据，如 1,3 缺 2）
+          const newOrder = curNodes.map((n) => n.id);
+          newOrder.splice(pos, 0, inserted.id);
+          for (let i = 0; i < newOrder.length; i++) {
+            const { error: upErr } = await supabaseClient
+              .from("ep_workflow_nodes")
+              .update({ order_index: i + 1 })
+              .eq("id", newOrder[i]);
+            if (upErr) {
+              window.app.showToast("添加失败: " + upErr.message, "error");
+              return;
+            }
+          }
+          overlay.remove();
+          await Store.loadAllWorkflowData();
+          EasyorderAndproc.renderWorkflows();
+        } catch (e) {
+          window.app.showToast("添加失败: " + e.message, "error");
+        } finally {
+          clearInterval(dotTimer);
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
         }
-        overlay.remove();
+      });
+  },
+
+  // 删除流程节点：删节点 + 清理审批人分配 + 整链重排序号 + 只刷新受影响模板
+  async deleteWorkflowNode(nodeId) {
+    if (!supabaseClient) return;
+    try {
+      // 1. 取节点模板 ID（用于删除后重排/局部刷新）
+      const { data: nodeRow } = await supabaseClient
+        .from("ep_workflow_nodes")
+        .select("template_id")
+        .eq("id", nodeId)
+        .maybeSingle();
+      // 2. 删除节点
+      const { error } = await supabaseClient
+        .from("ep_workflow_nodes")
+        .delete()
+        .eq("id", nodeId);
+      if (error) {
+        window.app.showToast("删除失败: " + error.message, "error");
+        return;
+      }
+      // 3. 级联清理该节点的审批人分配
+      await supabaseClient
+        .from("ep_workflow_node_assignees")
+        .delete()
+        .eq("node_id", nodeId);
+      const tplId = nodeRow && nodeRow.template_id;
+      // 4. 整链重排 order_index（并行 update，避免逐个串行等待拖慢删除）
+      if (tplId) {
+        const { data: rest } = await supabaseClient
+          .from("ep_workflow_nodes")
+          .select("id")
+          .eq("template_id", tplId)
+          .order("order_index");
+        const results = await Promise.all(
+          (rest || []).map((n, i) =>
+            supabaseClient
+              .from("ep_workflow_nodes")
+              .update({ order_index: i + 1 })
+              .eq("id", n.id),
+          ),
+        );
+        const failed = results.find((r) => r.error);
+        if (failed) throw failed.error;
+      }
+      // 5. 只刷新受影响模板（替代全量 loadAllWorkflowData + renderWorkflows）
+      if (tplId) {
+        await EasyorderAndproc._reloadOneWorkflow(tplId);
+      } else {
         await Store.loadAllWorkflowData();
         EasyorderAndproc.renderWorkflows();
-      });
+      }
+    } catch (e) {
+      window.app.showToast("删除失败: " + e.message, "error");
+    }
+  },
+
+  // 仅重拉并重渲染指定流程模板（避免删除/改动后全量刷新拖慢）
+  async _reloadOneWorkflow(tplId) {
+    // 1. 重拉该模板的节点
+    const { data: tplNodes, error: nErr } = await supabaseClient
+      .from("ep_workflow_nodes")
+      .select("*")
+      .eq("template_id", tplId)
+      .order("order_index");
+    if (nErr) throw nErr;
+    // 合并进全局节点缓存（替换该模板，保留其他模板）
+    const cachedNodes = Store.getWfNodes() || [];
+    Store.saveWfNodes(
+      cachedNodes.filter((n) => n.template_id !== tplId).concat(tplNodes || []),
+    );
+    // 2. 重拉该模板节点的分配
+    const nodeIds = (tplNodes || []).map((n) => n.id);
+    let tplAssignees = [];
+    if (nodeIds.length) {
+      const { data: as, error: asErr } = await supabaseClient
+        .from("ep_workflow_node_assignees")
+        .select("node_id,user_id,notify_type")
+        .in("node_id", nodeIds);
+      if (asErr) throw asErr;
+      tplAssignees = as || [];
+    }
+    const cachedAs = Store.getWfAssignees() || [];
+    Store.saveWfAssignees(
+      cachedAs.filter((a) => !nodeIds.includes(a.node_id)).concat(tplAssignees),
+    );
+    // 3. 只重渲染该模板卡片
+    EasyorderAndproc.renderOneWorkflow(tplId);
+  },
+
+  // 仅重渲染单个流程模板卡片（复用 _renderOneWorkflowEditor）
+  renderOneWorkflow(tplId) {
+    const container = document.getElementById("workflowContainer");
+    if (!container) return;
+    const tpl = (Store.getWfTemplates() || []).find((t) => t.id === tplId);
+    if (!tpl) {
+      EasyorderAndproc.renderWorkflows();
+      return;
+    }
+    EasyorderAndproc._wfUsers = Store.getApprovalUsers().filter(
+      (u) => u.is_active,
+    );
+    const nodes = Store.getWfNodes().filter((n) => n.template_id === tplId);
+    const nodeAssignees = {};
+    Store.getWfAssignees().forEach((a) => {
+      if (!nodeAssignees[a.node_id]) nodeAssignees[a.node_id] = [];
+      nodeAssignees[a.node_id].push(a.user_id);
+    });
+    const typeMap = { 运输: 1, 参观: 1, 选样: 1, 借还: 3, 其他: 1, 订单: 2 };
+    const min = typeMap[tpl.apply_type] || 2;
+    const card = container.querySelector(
+      '.wf-editor-card[data-tpl-id="' + tplId + '"]',
+    );
+    const html = EasyorderAndproc._renderOneWorkflowEditor(
+      tpl,
+      nodes,
+      nodeAssignees,
+      min,
+    );
+    if (card) {
+      card.outerHTML = html;
+    } else {
+      // 卡片不在（例如首次进入页面），全量渲染兜底
+      EasyorderAndproc.renderWorkflows();
+    }
   },
 
   async _showWFEditNode(nodeId) {
@@ -1841,6 +2006,18 @@ const EasyorderAndproc = {
           ".modal-body input[type=checkbox]:checked",
         );
         const selectedIds = Array.from(checkedBoxes).map((cb) => cb.value);
+        // 保存中…三点循环动画（与其他保存交互一致）
+        const submitBtn = document.getElementById("wfEditSave");
+        const originalText = submitBtn.textContent;
+        submitBtn.disabled = true;
+        let dots = 0;
+        let dotDir = 1;
+        const dotTimer = setInterval(() => {
+          dots += dotDir;
+          if (dots >= 3) dotDir = -1;
+          if (dots <= 0) dotDir = 1;
+          submitBtn.textContent = "保存中" + ".".repeat(dots);
+        }, 400);
         try {
           // 更新名称
           await supabaseClient
@@ -1869,10 +2046,19 @@ const EasyorderAndproc = {
               .insert(inserts);
           }
           overlay.remove();
-          await Store.loadAllWorkflowData();
-          EasyorderAndproc.renderWorkflows();
+          // 只刷新受影响模板（替代全量刷新，与删除/添加一致）
+          if (node.template_id) {
+            await EasyorderAndproc._reloadOneWorkflow(node.template_id);
+          } else {
+            await Store.loadAllWorkflowData();
+            EasyorderAndproc.renderWorkflows();
+          }
         } catch (err) {
           window.app.showToast("保存失败: " + err.message, "error");
+        } finally {
+          clearInterval(dotTimer);
+          submitBtn.disabled = false;
+          submitBtn.textContent = originalText;
         }
       });
   },
