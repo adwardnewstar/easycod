@@ -1434,6 +1434,29 @@ const EasyorderAndproc = {
       }
       try {
         if (isEdit) {
+          // 邮箱变更时先同步 Supabase Auth（登录标识），再更新业务档案，防止两边不一致
+          if (data.email !== email) {
+            const { data: sessionData } =
+              await supabaseClient.auth.getSession();
+            const token = sessionData?.session?.access_token;
+            if (!token) throw new Error("未登录，请重新登录");
+            const fnRes = await fetch(
+              "https://vqoortdzgvllyxplduxq.supabase.co/functions/v1/update-user-email",
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Authorization: "Bearer " + token,
+                },
+                body: JSON.stringify({
+                  auth_user_id: data.auth_user_id,
+                  email,
+                }),
+              },
+            );
+            const fnData = await fnRes.json();
+            if (!fnRes.ok) throw new Error(fnData.error || "更新登录邮箱失败");
+          }
           const { error: e } = await supabaseClient
             .from("ep_users")
             .update({
