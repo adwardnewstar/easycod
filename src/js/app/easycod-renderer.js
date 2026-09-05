@@ -32,6 +32,37 @@ class EasycodRenderer {
       this._sortLabels[this._sortState];
   }
 
+  // ============ 权限辅助 ============
+  // 权限模型：团队共享读；admin 全权；普通用户仅能操作自己名下的数据
+  _uid() {
+    var u = this.app && this.app.user;
+    return u && !u.isDemo ? u.id : "";
+  }
+
+  _isAdmin() {
+    var u = this.app && this.app.user;
+    if (!u || u.isDemo) return true; // 未登录 / 演示用户放开，避免误锁
+    return u.role === "admin";
+  }
+
+  _ownerIdOf(row) {
+    if (!row) return "";
+    return row.userId || row.user_id || "";
+  }
+
+  /** 能否编辑/删除该行（admin 全量，普通用户仅本人） */
+  _canWrite(row) {
+    if (this._isAdmin()) return true;
+    var uid = this._uid();
+    var owner = this._ownerIdOf(row);
+    return !!uid && !!owner && String(owner) === String(uid);
+  }
+
+  /** 类别创建仅限 admin */
+  _canCreateProject() {
+    return this._isAdmin();
+  }
+
   // ============ 类别筛选 ============
   _populateProjectFilters() {
     var samples = Store.getSamples() || [];
@@ -70,6 +101,10 @@ class EasycodRenderer {
 
   // ============ 类别卡片 / 表格渲染 ============
   renderProjects() {
+    // 权限：类别新建/编辑/删除仅 admin，普通用户只读
+    var canCreate = this._canCreateProject();
+    var createBtn = document.getElementById("createProjectBtn");
+    if (createBtn) createBtn.style.display = canCreate ? "" : "none";
     // 刷新筛选下拉
     this._populateProjectFilters();
     const container = document.getElementById("projectsContainer");
@@ -134,28 +169,25 @@ class EasycodRenderer {
         return (p.procurement || false) === isProc;
       });
     }
-    if (projects.length === 0) {
-      container.innerHTML = `
-        <div class="card card-placeholder" id="placeholderCreateCard">
+    var placeholderHtml = canCreate
+      ? `<div class="card card-placeholder" id="placeholderCreateCard">
           <div class="card-body" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;min-height:120px">
             <span style="font-size:2rem;line-height:1;color:var(--primary)">+</span>
             <span style="font-size:0.9rem;color:var(--text-light)">新建品类</span>
           </div>
-        </div>
-      `;
+        </div>`
+      : "";
+    if (projects.length === 0) {
+      container.innerHTML =
+        placeholderHtml ||
+        '<div class="card" style="display:flex;align-items:center;justify-content:center;min-height:120px;color:var(--text-light);font-size:0.9rem">暂无类别数据</div>';
       return;
     }
     container.innerHTML =
-      `
-        <div class="card card-placeholder" id="placeholderCreateCard">
-          <div class="card-body" style="display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px;min-height:120px">
-            <span style="font-size:2rem;line-height:1;color:var(--primary)">+</span>
-            <span style="font-size:0.9rem;color:var(--text-light)">新建品类</span>
-          </div>
-        </div>
-      ` +
+      placeholderHtml +
       projects
         .map((project) => {
+          const canWrite = this._canWrite(project);
           const sampleCount = Store.getSamples().filter(
             (s) => s.projectId === project.id,
           ).length;
@@ -179,8 +211,12 @@ class EasycodRenderer {
           </div>
           <div class="card-actions">
             <button class="btn btn-primary view-samples-btn" data-id="${project.id}">查看样板</button>
-            <button class="btn btn-secondary edit-project-btn" data-id="${project.id}">编辑</button>
-            <button class="btn btn-danger delete-project-btn" data-id="${project.id}">删除</button>
+            ${
+              canWrite
+                ? `<button class="btn btn-secondary edit-project-btn" data-id="${project.id}">编辑</button>
+            <button class="btn btn-danger delete-project-btn" data-id="${project.id}">删除</button>`
+                : ""
+            }
           </div>
         </div>
       `;
@@ -406,6 +442,17 @@ class EasycodRenderer {
       "</button>" +
       "</div>";
 
+    // 权限：编辑/删除类别仅 admin 或类别创建者
+    if (!this._canWrite(project)) {
+      sheet
+        .querySelectorAll(
+          '.sheet-action[data-action="edit"], .sheet-action[data-action="delete"]',
+        )
+        .forEach(function (btn) {
+          btn.remove();
+        });
+    }
+
     var self = this;
     // 绑定操作按钮
     sheet.querySelectorAll(".sheet-action").forEach(function (btn) {
@@ -551,6 +598,13 @@ class EasycodRenderer {
       return pass;
     });
 
+    // 权限：列表操作列 编辑/删除 仅对可写行显示
+    var rowCanWrite = (function (renderer) {
+      return function (row) {
+        return renderer._canWrite(row);
+      };
+    })(this);
+
     container.innerHTML =
       '<div style="overflow-x:auto;max-width:100%;">' +
       '<table class="data-table">' +
@@ -618,14 +672,16 @@ class EasycodRenderer {
             "<button onclick=\"window.app.showSampleDetail('" +
             s.id +
             "')\">查看</button>" +
-            "<button onclick=\"window.app.editSample('" +
-            s.id +
-            "')\">编辑</button>" +
-            "<button class=\"btn-danger\" onclick=\"window.app.promptDelete('sample','" +
-            s.id +
-            "','样板 " +
-            esc(s.name) +
-            "')\">删除</button>" +
+            (rowCanWrite(s)
+              ? "<button onclick=\"window.app.editSample('" +
+                s.id +
+                "')\">编辑</button>" +
+                "<button class=\"btn-danger\" onclick=\"window.app.promptDelete('sample','" +
+                s.id +
+                "','样板 " +
+                esc(s.name) +
+                "')\">删除</button>"
+              : "") +
             "</div></td>" +
             "</tr>"
           );
@@ -650,13 +706,15 @@ class EasycodRenderer {
       scopeColor = "var(--danger)";
       labelBg = "rgba(255,59,48,0.85)";
     }
+    // 权限：编辑/删除/多选仅限可写样板（admin 全量，普通用户仅本人）
+    const canWriteSample = this._canWrite(sample);
     return `
         <div class="sample-card" data-id="${sample.id}">
-          <input type="checkbox" class="sample-checkbox" data-id="${sample.id}" ${this.app.selectedSamples.has(sample.id) ? "checked" : ""}>
+          <input type="checkbox" class="sample-checkbox" data-id="${sample.id}" ${canWriteSample ? "" : "disabled"} ${this.app.selectedSamples.has(sample.id) ? "checked" : ""}>
           <div class="sample-image-wrap">
             ${
               sample.imageUrl
-                ? `<img class="sample-image" src="${sample.thumbnailUrl || sample.imageUrl}" alt="${sample.name}" loading="lazy" data-fullsrc="${sample.imageUrl}">${sample._uploadFailed ? `<div class="sample-fail-watermark">FALSE</div>` : ""}${sample.imageUrl && !sample.thumbnailUrl ? `<button class="thumb-regen-btn" data-id="${sample.id}" title="重新生成缩略图"><i class="ph ph-arrow-clockwise"></i></button>` : ""}`
+                ? `<img class="sample-image" src="${sample.thumbnailUrl || sample.imageUrl}" alt="${sample.name}" loading="lazy" data-fullsrc="${sample.imageUrl}">${sample._uploadFailed ? `<div class="sample-fail-watermark">FALSE</div>` : ""}${canWriteSample && sample.imageUrl && !sample.thumbnailUrl ? `<button class="thumb-regen-btn" data-id="${sample.id}" title="重新生成缩略图"><i class="ph ph-arrow-clockwise"></i></button>` : ""}`
                 : `<div class="sample-image-placeholder">空</div>`
             }
             <button class="btn-label-print" data-id="${sample.id}" title="打印标签" style="background:${labelBg};">标签</button>
@@ -667,16 +725,20 @@ class EasycodRenderer {
           </div>
           <div class="sample-info">
             <div class="sample-title-row">
-              <h3>${sample.name}</h3>
-              <span class="sample-model">${sample.model || ""}</span>
+              <h3 title="${esc(sample.name)}">${sample.name}</h3>
+              <span class="sample-model" title="${esc(sample.model || "")}">${sample.model || ""}</span>
             </div>
             <div class="sample-code">${sample.code || ""}</div>
             <div class="sample-scope" style="color:${scopeColor};">${scopeText}</div>
           </div>
           <div class="card-actions" style="padding:8px 12px;border-top:1px solid var(--border);background:var(--bg);display:flex;gap:4px;">
             <button class="btn btn-sm btn-ghost view-sample-detail-btn" data-id="${sample.id}" style="flex:1;">详情</button>
-            <button class="btn btn-sm btn-ghost edit-sample-btn" data-id="${sample.id}" style="flex:1;">编辑</button>
-            <button class="btn btn-sm btn-ghost delete-sample-btn" data-id="${sample.id}" style="flex:1;color:var(--danger);">删除</button>
+            ${
+              canWriteSample
+                ? `<button class="btn btn-sm btn-ghost edit-sample-btn" data-id="${sample.id}" style="flex:1;">编辑</button>
+            <button class="btn btn-sm btn-ghost delete-sample-btn" data-id="${sample.id}" style="flex:1;color:var(--danger);">删除</button>`
+                : ""
+            }
           </div>
         </div>
       `;
@@ -832,6 +894,11 @@ class EasycodRenderer {
     );
     document.getElementById("currentProjectName").textContent = project.name;
 
+    // 权限：当前类别可写时（admin 或类别创建者）才显示「编辑类别」按钮
+    var editProjectBtn = document.getElementById("editProjectSampleBtn");
+    if (editProjectBtn)
+      editProjectBtn.style.display = this._canWrite(project) ? "" : "none";
+
     // 排序
     this._updateSortBtn();
     var self = this;
@@ -965,16 +1032,25 @@ class EasycodRenderer {
   }
 
   selectAllSamples() {
-    const allCards = document.querySelectorAll(".sample-card[data-id]");
-    const allChecked = Array.from(
-      document.querySelectorAll(".sample-checkbox"),
-    ).every((cb) => cb.checked);
+    var boxes = Array.from(document.querySelectorAll(".sample-checkbox"));
+    var enabled = boxes.filter(function (cb) {
+      return !cb.disabled;
+    });
+    var allChecked =
+      enabled.length > 0 &&
+      enabled.every(function (cb) {
+        return cb.checked;
+      });
     const newState = !allChecked;
     document.getElementById("selectAllBtn").textContent = newState
       ? "取消全选"
       : "全选";
     this.app.selectedSamples.clear();
-    document.querySelectorAll(".sample-checkbox").forEach((cb) => {
+    boxes.forEach((cb) => {
+      if (cb.disabled) {
+        cb.checked = false;
+        return;
+      }
       cb.checked = newState;
       if (newState) this.app.selectedSamples.add(cb.dataset.id);
     });
@@ -1504,6 +1580,17 @@ class EasycodRenderer {
       '<span class="sheet-act-text"><span class="sheet-act-label">删除样板</span><span class="sheet-act-desc">删除后不可恢复</span></span>' +
       "</button>" +
       "</div>";
+
+    // 权限：编辑/删除样板仅对可写样板显示（admin 全量，普通用户仅本人）
+    if (!this._canWrite(sample)) {
+      sheet
+        .querySelectorAll(
+          '.sheet-action[data-action="edit"], .sheet-action[data-action="delete"]',
+        )
+        .forEach(function (btn) {
+          btn.remove();
+        });
+    }
 
     // 绑定操作按钮
     sheet.querySelectorAll(".sheet-action").forEach(function (btn) {

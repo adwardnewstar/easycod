@@ -116,34 +116,65 @@ class Sidebar {
     nameEl.innerHTML = `${demoBadge}${userName}`;
   }
 
-  /** 根据用户权限显示/隐藏菜单项 */
+  /** 根据用户权限显示/隐藏菜单项（模块总开关 + 子开关 + 空组整组隐藏） */
   updateVisibility(user) {
     const isAdmin = user?.role === "admin" || user?.menuPermissions === null;
     const perms = user?.menuPermissions || {};
+    // 模块总开关：缺失/undefined 一律视为开启；false 才视为关闭
+    const modOn = (v) => v !== false;
+    const mods = {
+      easycod: modOn(user?.easycod),
+      easyorder: modOn(user?.easyorder),
+      easyproc: modOn(user?.easyproc),
+      easyvoic: modOn(user?.easyvoice),
+    };
 
     const items = [
-      { id: "navProjects", key: "projects" },
-      { id: "infoBtn", key: "info" },
-      { id: "navOrders", key: "orders" },
-      { id: "navApply", key: "apply" },
-      { id: "navClock", key: "clock" },
-      { id: "navSettings", key: "settings" },
-      { id: "navApprovalUsers", key: "approvalUsers", adminOnly: true },
-      { id: "navWorkflows", key: "workflows" },
-      { id: "navApprovalRecords", key: "records" },
-      { id: "navVoiceAssistant", key: "voice" },
+      { id: "navProjects", key: "projects", module: "easycod" },
+      { id: "infoBtn", key: "info", module: "easycod" },
+      { id: "navOrders", key: "orders", module: "easyorder" },
+      { id: "navApply", key: "apply", module: "easyorder" },
+      { id: "navClock", key: "clock", module: "easyorder" },
+      { id: "navSettings", key: "settings", module: "easyorder" },
+      {
+        id: "navApprovalUsers",
+        key: "approvalUsers",
+        module: "easyproc",
+        adminOnly: true,
+      },
+      { id: "navWorkflows", key: "workflows", module: "easyproc" },
+      { id: "navApprovalRecords", key: "records", module: "easyproc" },
+      { id: "navVoiceAssistant", key: "voice", module: "easyvoic" },
     ];
+
+    const groupCounts = {
+      easycod: 0,
+      easyorder: 0,
+      easyproc: 0,
+      easyvoic: 0,
+    };
 
     items.forEach((item) => {
       const el = document.getElementById(item.id);
       if (!el) return;
-      el.style.display = item.adminOnly
-        ? isAdmin
-          ? ""
-          : "none"
-        : isAdmin || perms[item.key]
-          ? ""
-          : "none";
+      let visible = true;
+      if (!isAdmin) {
+        if (item.adminOnly) visible = false;
+        else if (!mods[item.module] || !perms[item.key]) visible = false;
+      }
+      el.style.display = visible ? "" : "none";
+      if (visible) groupCounts[item.module] += 1;
+    });
+
+    // 模块总开关关闭 / 组内无任何可见子项 => 整个分组（含主标题）一起隐藏
+    Object.keys(groupCounts).forEach((g) => {
+      const header = document.querySelector(
+        '.nav-group-header[data-group="' + g + '"]',
+      );
+      const group = header ? header.closest(".nav-group") : null;
+      if (!group) return;
+      const hidden = !isAdmin && (!mods[g] || groupCounts[g] === 0);
+      group.style.display = hidden ? "none" : "";
     });
   }
 

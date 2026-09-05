@@ -121,7 +121,11 @@ class DbWriter {
     }
 
     const clean = this._cleanRow(sample);
-    clean.user_id = userId;
+    // 归属优先保留行内已有 user_id（admin 编辑他人数据时不可转移所有权）
+    const keepOwner = clean.user_id || clean.userId || "";
+    delete clean.userId;
+    delete clean.user_id;
+    clean.user_id = keepOwner || userId;
     const row = DbWriter.toSnakeCase(clean);
 
     const { error } = await supabaseClient
@@ -150,7 +154,11 @@ class DbWriter {
     }
 
     const clean = this._cleanRow(project);
-    clean.user_id = userId;
+    // 归属优先保留行内已有 user_id（admin 编辑他人数据时不可转移所有权）
+    const keepOwner = clean.user_id || clean.userId || "";
+    delete clean.userId;
+    delete clean.user_id;
+    clean.user_id = keepOwner || userId;
     const row = DbWriter.toSnakeCase(clean);
 
     const { error } = await supabaseClient

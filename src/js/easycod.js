@@ -323,6 +323,32 @@ const Easycod = {
         if (app.currentProjectId) app.renderSamples(app.currentProjectId);
       });
 
+    // 手机端放大镜搜索：点图标展开浮层搜索条，点外部 / 再点图标收起（桌面端忽略）
+    var sampleFilterBar = document.getElementById("sampleFilters");
+    var searchIconBtn = sampleFilterBar
+      ? sampleFilterBar.querySelector(".dash-search")
+      : null;
+    if (searchIconBtn && sb) {
+      searchIconBtn.addEventListener("click", function () {
+        if (window.innerWidth > 768) return;
+        var open = sampleFilterBar.classList.contains("search-open");
+        if (!open) {
+          sampleFilterBar.classList.add("search-open");
+          sb.removeAttribute("readonly");
+          sb.focus();
+        } else {
+          sampleFilterBar.classList.remove("search-open");
+          sb.blur();
+        }
+      });
+      document.addEventListener("click", function (e) {
+        if (!sampleFilterBar.classList.contains("search-open")) return;
+        if (e.target.closest(".dash-search")) return;
+        sampleFilterBar.classList.remove("search-open");
+        sb.blur();
+      });
+    }
+
     // 编辑类别 — 打开项目弹窗
     document
       .getElementById("editProjectSampleBtn")

@@ -1212,10 +1212,10 @@ const EasyorderAndproc = {
         <td>${window.app._esc(u.display_name || "")}</td>
         <td style="font-size:0.85rem">${window.app._esc(u.phone || "-")}</td>
         <td><span class="status-badge ${u.role === "admin" ? "status-success" : "status-info"}">${window.app._esc(u.role || "审批人")}</span></td>
-        <td>${EasyorderAndproc._toggleBadge(u.easycod, "ec", u.id)}</td>
-        <td>${EasyorderAndproc._toggleBadge(u.easyorder, "eo", u.id)}</td>
-        <td>${EasyorderAndproc._toggleBadge(u.easyproc, "ep", u.id)}</td>
-        <td>${EasyorderAndproc._toggleBadge(u.easyvoice, "ev", u.id)}</td>
+        <td>${EasyorderAndproc._moduleBadge(u.easycod)}</td>
+        <td>${EasyorderAndproc._moduleBadge(u.easyorder)}</td>
+        <td>${EasyorderAndproc._moduleBadge(u.easyproc)}</td>
+        <td>${EasyorderAndproc._moduleBadge(u.easyvoice)}</td>
         <td style="white-space:nowrap"><div class="view-toggle wf-active-toggle" data-id="${u.id}" style="display:inline-flex;vertical-align:middle"><button type="button" class="toggle-btn ${u.is_active ? "active" : ""}" data-val="true" style="${u.is_active ? "background:var(--primary);color:#fff;" : ""}">正常</button><button type="button" class="toggle-btn ${!u.is_active ? "active" : ""}" data-val="false" style="${!u.is_active ? "background:#e74c3c;color:#fff;" : ""}">禁用</button></div><button class="btn btn-sm btn-ghost edit-ep-user" data-id="${u.id}" style="margin-left:6px;margin-right:4px">编辑</button><button class="btn btn-sm btn-ghost" onclick="window.app.promptDelete('ep_user','${u.id}','审批人 ${window.app._esc(u.display_name || "")}')" style="color:var(--danger)">删除</button></td>
       </tr>`,
         )
@@ -1225,26 +1225,6 @@ const EasyorderAndproc = {
         btn.addEventListener("click", () => {
           const u = users.find((x) => x.id === btn.dataset.id);
           if (u) EasyorderAndproc.showApprovalUserModal(u);
-        });
-      });
-      // 项目开关点击
-      container.querySelectorAll(".toggle-badge").forEach((el) => {
-        el.addEventListener("click", async () => {
-          const id = el.dataset.id;
-          const field = el.dataset.field;
-          const current = el.dataset.value === "true";
-          const update = {};
-          update[field] = !current;
-          const { error: e } = await supabaseClient
-            .from("ep_users")
-            .update(update)
-            .eq("id", id);
-          if (e) {
-            window.app.showToast("更新失败: " + e.message, "error");
-            return;
-          }
-          await Store.loadApprovalUsersFromDB();
-          EasyorderAndproc.renderApprovalUsers();
         });
       });
       container.querySelectorAll(".wf-active-toggle").forEach((el) => {
@@ -1280,8 +1260,8 @@ const EasyorderAndproc = {
     }
   },
 
-  _toggleBadge(active, field, id) {
-    return `<span class="status-badge toggle-badge ${active ? "status-success" : "status-error"}" style="cursor:pointer" data-id="${id}" data-field="${field}" data-value="${active}">${active ? "开启" : "关闭"}</span>`;
+  _moduleBadge(active) {
+    return `<span class="status-badge ${active ? "status-success" : "status-error"}">${active ? "开启" : "关闭"}</span>`;
   },
 
   showApprovalUserModal(data) {

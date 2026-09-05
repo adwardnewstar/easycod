@@ -1313,6 +1313,15 @@ class App {
         this.user.easyvoice = epData.easyvoice;
         this.user.menuPermissions = epData.menu_permissions;
         Store.saveSession(this.user);
+        // 角色信息到位后刷新权限敏感的当前视图，避免按钮在角色异步加载前误判
+        if (this.easycodRenderer && !this.user.isDemo) {
+          var permContainer = document.getElementById("projectsContainer");
+          if (permContainer) {
+            if (this.currentView === "projects") this.renderProjects();
+            else if (this.currentView === "samples")
+              this.renderSamples(this.currentProjectId);
+          }
+        }
       }
     } catch (e) {
       // 静默失败，用现有的 session
@@ -1865,7 +1874,12 @@ class App {
           procurement: isProc,
           procurementStart,
           procurementEnd,
-          user_id: this.user?.id || projects[index].userId || "demo-user",
+          // 保留原归属：admin 编辑他人创建的类别时不得转移所有权
+          user_id:
+            projects[index].userId ||
+            projects[index].user_id ||
+            this.user?.id ||
+            "demo-user",
           updatedAt: new Date().toISOString(),
         };
         Store.saveProjects(projects);
@@ -2358,7 +2372,12 @@ class App {
           thumbnailUrl: hasNewImage
             ? previewImageUrl
             : samples[index].thumbnailUrl || "",
-          user_id: this.user?.id || samples[index].userId || "demo-user",
+          // 保留原归属：admin 编辑他人录入的样板时不得转移所有权
+          user_id:
+            samples[index].userId ||
+            samples[index].user_id ||
+            this.user?.id ||
+            "demo-user",
           updatedAt: new Date().toISOString(),
           _uploadFailed: false,
           _pendingUpload: hasNewImage,

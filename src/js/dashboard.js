@@ -41,7 +41,7 @@
         var el = document.getElementById("dashClock");
         if (el)
           el.textContent =
-            y + "年" + m + "月" + d + "日  " + h + ":" + mi + ":" + s;
+            y + "年" + m + "月" + d + "日\n" + h + ":" + mi + ":" + s;
       }
       tick();
       setInterval(tick, 1000);
@@ -153,96 +153,8 @@
     });
 
     // ===== 热力图自适应（延迟执行） =====
-    requestAnimationFrame(function () {
-      var _qCont = document.querySelector(".heatmap-quarters");
-      if (_qCont) {
-        var _qGrids = _qCont.querySelectorAll(".quarter-grid");
-
-        // 第一遍：收集每个季度的约束
-        var _qs = [];
-        for (var _qi = 0; _qi < _qGrids.length; _qi++) {
-          var _qGrid = _qGrids[_qi];
-          var _qH = _qGrid.clientHeight;
-          var _qW = _qGrid.clientWidth;
-          if (_qH <= 0 || _qW <= 0) continue;
-          var _qCm = _qGrid.style.gridTemplateColumns.match(/repeat\((\d+)/);
-          if (!_qCm) continue;
-          var _qCols = parseInt(_qCm[1], 10);
-          var _qCells = _qGrid.querySelectorAll(".heatmap-cell");
-          var _qRows = Math.ceil(_qCells.length / _qCols);
-          _qs.push({
-            grid: _qGrid,
-            cells: _qCells,
-            cols: _qCols,
-            rows: _qRows,
-            w: _qW,
-            h: _qH,
-          });
-        }
-
-        // 计算统一 cell：取所有季度的最小约束
-        var _uCell = 9999;
-        for (var _qi2 = 0; _qi2 < _qs.length; _qi2++) {
-          var _c = _qs[_qi2];
-          var _cH = (4 * _c.h) / (5 * _c.rows - 1);
-          var _cW = (4 * _c.w) / (5 * _c.cols - 1);
-          _uCell = Math.min(_uCell, _cH, _cW);
-        }
-        if (_uCell < 2) _uCell = 2;
-        var _uGap = _uCell / 4;
-
-        // 统一应用到所有季度
-        for (var _qi3 = 0; _qi3 < _qs.length; _qi3++) {
-          var _g = _qs[_qi3].grid;
-          var _cells = _qs[_qi3].cells;
-          _g.style.columnGap = _uGap + "px";
-          _g.style.rowGap = _uGap + "px";
-          _g.style.gridTemplateColumns =
-            "repeat(" + _qs[_qi3].cols + ", " + _uCell + "px)";
-          _g.style.justifyContent = "center";
-          _g.style.alignContent = "start";
-          _g.style.width = "auto";
-          _g.style.margin = "0 auto";
-          for (var _ci = 0; _ci < _cells.length; _ci++) {
-            _cells[_ci].style.width = _uCell + "px";
-            _cells[_ci].style.height = _uCell + "px";
-          }
-        }
-
-        // 淡入：跨季度统一排序
-        var _allCells = _qCont.querySelectorAll(".heatmap-cell");
-        var _uArr = [];
-        for (var _ui = 0; _ui < _allCells.length; _ui++) {
-          _uArr.push({
-            el: _allCells[_ui],
-            cnt: parseInt(_allCells[_ui].getAttribute("data-count")) || 0,
-          });
-        }
-        _uArr.sort(function (a, b) {
-          return b.cnt - a.cnt;
-        });
-        var _uGroups = [];
-        var _uPrev = -1;
-        for (var _ui2 = 0; _ui2 < _uArr.length; _ui2++) {
-          if (_uArr[_ui2].cnt !== _uPrev) {
-            _uPrev = _uArr[_ui2].cnt;
-            _uGroups.push([]);
-          }
-          _uGroups[_uGroups.length - 1].push(_uArr[_ui2].el);
-        }
-        for (var _ug = 0; _ug < _uGroups.length; _ug++) {
-          for (var _ue = 0; _ue < _uGroups[_ug].length; _ue++) {
-            _uGroups[_ug][_ue].style.opacity = "0";
-            _uGroups[_ug][_ue].style.transition = "opacity 0.35s ease";
-            (function (el, delay) {
-              setTimeout(function () {
-                el.style.opacity = "";
-              }, delay);
-            })(_uGroups[_ug][_ue], _ug * 60);
-          }
-        }
-      }
-    });
+    this._fitHeatmap();
+    this._bindHeatmapNav();
 
     // 清除旧的拖拽排序记录
     try {
@@ -254,6 +166,7 @@
     this._animateFlipCode(dailyCode);
     this._animateMiniDonuts();
     this._setupChartSettings();
+    this._enableBarDrag();
   };
 
   // ===== 动画 =====
@@ -499,8 +412,137 @@
   };
 
   // ===== 日期热力图 =====
+  DashboardPage.prototype._fitHeatmap = function () {
+    requestAnimationFrame(function () {
+      var _qCont = document.querySelector(".heatmap-quarters");
+      if (_qCont) {
+        var _qGrids = _qCont.querySelectorAll(".quarter-grid");
+
+        // 第一遍：收集每个季度的约束
+        var _qs = [];
+        for (var _qi = 0; _qi < _qGrids.length; _qi++) {
+          var _qGrid = _qGrids[_qi];
+          var _qH = _qGrid.clientHeight;
+          var _qW = _qGrid.clientWidth;
+          if (_qH <= 0 || _qW <= 0) continue;
+          var _qCm = _qGrid.style.gridTemplateColumns.match(/repeat\((\d+)/);
+          if (!_qCm) continue;
+          var _qCols = parseInt(_qCm[1], 10);
+          var _qCells = _qGrid.querySelectorAll(".heatmap-cell");
+          var _qRows = Math.ceil(_qCells.length / _qCols);
+          _qs.push({
+            grid: _qGrid,
+            cells: _qCells,
+            cols: _qCols,
+            rows: _qRows,
+            w: _qW,
+            h: _qH,
+          });
+        }
+
+        // 计算统一 cell：取所有季度的最小约束
+        var _uCell = 9999;
+        for (var _qi2 = 0; _qi2 < _qs.length; _qi2++) {
+          var _c = _qs[_qi2];
+          var _cH = (4 * _c.h) / (5 * _c.rows - 1);
+          var _cW = (4 * _c.w) / (5 * _c.cols - 1);
+          _uCell = Math.min(_uCell, _cH, _cW);
+        }
+        if (_uCell < 2) _uCell = 2;
+        var _uGap = _uCell / 4;
+
+        // 统一应用到所有季度
+        for (var _qi3 = 0; _qi3 < _qs.length; _qi3++) {
+          var _g = _qs[_qi3].grid;
+          var _cells = _qs[_qi3].cells;
+          _g.style.columnGap = _uGap + "px";
+          _g.style.rowGap = _uGap + "px";
+          _g.style.gridTemplateColumns =
+            "repeat(" + _qs[_qi3].cols + ", " + _uCell + "px)";
+          _g.style.justifyContent = "center";
+          _g.style.alignContent = "start";
+          _g.style.width = "auto";
+          _g.style.margin = "0 auto";
+          for (var _ci = 0; _ci < _cells.length; _ci++) {
+            _cells[_ci].style.width = _uCell + "px";
+            _cells[_ci].style.height = _uCell + "px";
+          }
+        }
+
+        // 淡入：跨季度统一排序
+        var _allCells = _qCont.querySelectorAll(".heatmap-cell");
+        var _uArr = [];
+        for (var _ui = 0; _ui < _allCells.length; _ui++) {
+          _uArr.push({
+            el: _allCells[_ui],
+            cnt: parseInt(_allCells[_ui].getAttribute("data-count")) || 0,
+          });
+        }
+        _uArr.sort(function (a, b) {
+          return b.cnt - a.cnt;
+        });
+        var _uGroups = [];
+        var _uPrev = -1;
+        for (var _ui2 = 0; _ui2 < _uArr.length; _ui2++) {
+          if (_uArr[_ui2].cnt !== _uPrev) {
+            _uPrev = _uArr[_ui2].cnt;
+            _uGroups.push([]);
+          }
+          _uGroups[_uGroups.length - 1].push(_uArr[_ui2].el);
+        }
+        for (var _ug = 0; _ug < _uGroups.length; _ug++) {
+          for (var _ue = 0; _ue < _uGroups[_ug].length; _ue++) {
+            _uGroups[_ug][_ue].style.opacity = "0";
+            _uGroups[_ug][_ue].style.transition = "opacity 0.35s ease";
+            (function (el, delay) {
+              setTimeout(function () {
+                el.style.opacity = "";
+              }, delay);
+            })(_uGroups[_ug][_ue], _ug * 60);
+          }
+        }
+      }
+    });
+  };
+
+  DashboardPage.prototype._bindHeatmapNav = function () {
+    var wrap = document.getElementById("dashHeatmapWrap");
+    if (!wrap) return;
+    var self = this;
+    var btns = wrap.querySelectorAll(".heatmap-nav");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener("click", function (ev) {
+        ev.stopPropagation();
+        var step = parseInt(this.getAttribute("data-step"), 10) || 0;
+        self._changeHeatYear(step);
+      });
+    }
+  };
+
+  DashboardPage.prototype._changeHeatYear = function (step) {
+    var wrap = document.getElementById("dashHeatmapWrap");
+    if (!wrap) return;
+    var nowYear = new Date().getFullYear();
+    var target = (this._heatYear || nowYear) + step;
+    var minYear = this._heatMinYear;
+    if (minYear != null && target < minYear) target = minYear;
+    if (target > nowYear) target = nowYear;
+    if (target === this._heatYear) return;
+    this._heatYear = target;
+    wrap.innerHTML = this._renderHeatmap(
+      Store.getClockRecords() || [],
+      Store.getApplyRecords() || [],
+      Store.getOrders() || [],
+    );
+    this._fitHeatmap();
+  };
+
   DashboardPage.prototype._renderHeatmap = function (clock, apply, orders) {
     var html = "";
+
+    var now = new Date();
+    var nowYear = now.getFullYear();
+    if (!this._heatYear) this._heatYear = nowYear;
 
     // 按日期汇总（申请+到访+订单）
     var dateCounts = {};
@@ -517,34 +559,43 @@
     addItems(apply, "createdAt");
     addItems(orders, "createdAt");
 
-    // 最大密度
-    var maxCount = 0;
+    // 可回看的最早年份（有记录的第一年，无记录则取当前年）
+    var minYear = nowYear;
     for (var k in dateCounts) {
-      if (dateCounts[k] > maxCount) maxCount = dateCounts[k];
+      var y = parseInt(k.slice(0, 4), 10);
+      if (!isNaN(y) && y < minYear) minYear = y;
+    }
+    this._heatMinYear = minYear;
+
+    // 最大密度（仅限当前查看年份）
+    var year = this._heatYear;
+    var maxCount = 0;
+    for (var k2 in dateCounts) {
+      if (k2.slice(0, 4) === String(year) && dateCounts[k2] > maxCount) {
+        maxCount = dateCounts[k2];
+      }
     }
     if (maxCount === 0) maxCount = 1;
 
-    // 生成当年所有天数（1月1日 ~ 12月31日）
-    var now = new Date();
-    var year = now.getFullYear();
+    // 生成查看年份所有天数（1月1日 ~ 12月31日）
     var isLeap = (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0;
     var totalDays = isLeap ? 366 : 365;
     var days = [];
     for (var i = 1; i <= totalDays; i++) {
       var d = new Date(year, 0, i);
-      var y = d.getFullYear();
+      var yStr = d.getFullYear();
       var m = String(d.getMonth() + 1).padStart(2, "0");
       var dd = String(d.getDate()).padStart(2, "0");
-      var dateKey = y + "-" + m + "-" + dd;
+      var dateKey = yStr + "-" + m + "-" + dd;
       days.push({ key: dateKey, count: dateCounts[dateKey] || 0 });
     }
 
     // 按月份分 4 组
     var quarters = [
-      { label: "1-3", months: [1, 2, 3] },
-      { label: "4-6", months: [4, 5, 6] },
-      { label: "7-9", months: [7, 8, 9] },
-      { label: "10-12", months: [10, 11, 12] },
+      { label: "1", months: [1, 2, 3] },
+      { label: "4", months: [4, 5, 6] },
+      { label: "7", months: [7, 8, 9] },
+      { label: "10", months: [10, 11, 12] },
     ];
 
     function getLevel(cnt) {
@@ -552,11 +603,19 @@
       return r > 0.75 ? 4 : r > 0.5 ? 3 : r > 0.25 ? 2 : r > 0 ? 1 : 0;
     }
 
+    // 翻年按钮（左端/右端，垂直居中）
+    var prevDisabled = year <= minYear;
+    var nextDisabled = year >= nowYear;
+    html += '<div class="heatmap-main">';
+    html +=
+      '<button class="heatmap-nav heatmap-prev" data-step="-1" title="上一年" ' +
+      (prevDisabled ? "disabled" : "") +
+      ">&uarr;</button>";
     html += '<div class="heatmap-quarters">';
     quarters.forEach(function (q) {
       var qDays = days.filter(function (d) {
-        var m = parseInt(d.key.slice(5, 7), 10);
-        return q.months.indexOf(m) !== -1;
+        var m2 = parseInt(d.key.slice(5, 7), 10);
+        return q.months.indexOf(m2) !== -1;
       });
       var qCols = Math.ceil(Math.sqrt(qDays.length));
       var startMonth = q.months[0];
@@ -582,13 +641,20 @@
       html += "</div>"; // end quarter-grid
       html +=
         '<div class="quarter-label">' +
+        year +
+        "年" +
         startMonth +
-        "月~" +
+        "-" +
         endMonth +
         "月</div>";
       html += "</div>"; // end quarter-group
     });
     html += "</div>"; // end heatmap-quarters
+    html +=
+      '<button class="heatmap-nav heatmap-next" data-step="1" title="下一年" ' +
+      (nextDisabled ? "disabled" : "") +
+      ">&darr;</button>";
+    html += "</div>"; // end heatmap-main
 
     return html;
   };
@@ -678,6 +744,10 @@
     samples.forEach(function (s) {
       if (s.procurementRange === "范围内") totalProcurement++;
     });
+    var procurementRate =
+      totalSamples > 0
+        ? ((totalProcurement / totalSamples) * 100).toFixed(1)
+        : "0";
 
     // ===== Header：红点 =====
     html += '<div class="dash-bar-header">';
@@ -719,13 +789,15 @@
     html += '<div class="dash-chart-info">';
     html += '<div class="dash-chart-stats">';
     html +=
-      '<span class="legend-item"><span class="legend-dot legend-total"></span>展示样板：' +
+      '<span class="legend-item"><span class="legend-dot legend-total"></span>展示总样板数：' +
       totalSamples +
       "</span>";
     html +=
       '<span class="legend-item"><span class="legend-dot legend-procurement"></span>集采范围内：' +
       totalProcurement +
-      "</span>";
+      "（占比 " +
+      procurementRate +
+      "%）</span>";
     html += "</div>";
     html += "</div>";
 
@@ -747,8 +819,9 @@
     });
     html += "</div>";
 
-    // 柱子区域
+    // 柱子区域：外层横向滚动，内层按实际内容总宽排布（不压缩柱子）
     html += '<div class="chart-bars">';
+    html += '<div class="chart-bars-inner">';
     sorted.forEach(function (p) {
       var g = group[p.id] || { total: 0, procurement: 0 };
       var totalH = gridMax > 0 ? (g.total / gridMax) * 100 : 0;
@@ -777,10 +850,53 @@
         "</div>";
       html += "</div>";
     });
+    html += "</div>"; // end chart-bars-inner
     html += "</div>"; // end chart-bars
     html += "</div>"; // end dash-bar-body
 
     return html;
+  };
+
+  // ===== 柱状图拖拽平移（空间不足时左键按住左右滑动） =====
+  DashboardPage.prototype._enableBarDrag = function () {
+    var self = this;
+    var bar = document.querySelector(".chart-bars");
+    if (!bar) return;
+    this._barEl = bar;
+
+    // document 级 mousemove/mouseup 只注册一次，之后仅更新 _barEl
+    if (!this._barDragBound) {
+      this._barDragBound = true;
+      document.addEventListener("mousemove", function (e) {
+        if (!self._barDown || !self._barEl) return;
+        var dx = self._barStartX - e.clientX;
+        self._barEl.scrollLeft = self._barStartLeft + dx;
+      });
+      document.addEventListener("mouseup", function () {
+        if (!self._barDown) return;
+        self._barDown = false;
+        if (self._barEl) {
+          self._barEl.style.cursor = "";
+          self._barEl.style.userSelect = "";
+        }
+      });
+    }
+
+    bar.addEventListener("mousemove", function () {
+      if (self._barDown) return;
+      bar.style.cursor =
+        bar.scrollWidth > bar.clientWidth + 1 ? "grab" : "default";
+    });
+
+    bar.addEventListener("mousedown", function (e) {
+      if (e.button !== 0) return; // 仅左键
+      self._barDown = true;
+      self._barStartX = e.clientX;
+      self._barStartLeft = bar.scrollLeft;
+      bar.style.cursor = "grabbing";
+      bar.style.userSelect = "none";
+      e.preventDefault();
+    });
   };
 
   // ===== 品类设置更新（柱状图红点 + 排序） =====
@@ -838,6 +954,7 @@
         if (el) {
           el.innerHTML = self._barChart(samples, projects);
           self._setupChartSettings();
+          self._enableBarDrag();
         }
       });
     });
